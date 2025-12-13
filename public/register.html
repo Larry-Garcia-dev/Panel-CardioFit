@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Registro Admin - CardioFit</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-800 flex items-center justify-center h-screen">
+    <div class="bg-white p-8 rounded-lg shadow-lg w-96">
+        <h2 class="text-2xl font-bold mb-6 text-center text-gray-800">Nuevo Administrador</h2>
+        <form id="registerForm" class="space-y-4">
+            <input type="text" id="nombre" placeholder="Nombre Completo" class="w-full p-2 border rounded" required>
+            <input type="email" id="email" placeholder="Correo" class="w-full p-2 border rounded" required>
+            <input type="password" id="password" placeholder="Contraseña" class="w-full p-2 border rounded" required>
+            <div class="border-t pt-4">
+                <label class="text-xs font-bold text-red-600 uppercase">Código de Seguridad</label>
+                <input type="password" id="secretCode" placeholder="Código Maestro" class="w-full p-2 border border-red-300 rounded bg-red-50" required>
+            </div>
+            <button type="submit" class="w-full bg-green-600 text-white p-2 rounded hover:bg-green-700">Registrar</button>
+        </form>
+        <p class="mt-4 text-center text-sm">
+            <a href="login.html" class="text-blue-500 hover:underline">Volver al Login</a>
+        </p>
+    </div>
+
+    <script>
+        document.getElementById('registerForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const data = {
+                nombre: document.getElementById('nombre').value,
+                email: document.getElementById('email').value,
+                password: document.getElementById('password').value,
+                secretCode: document.getElementById('secretCode').value
+            };
+
+            const res = await fetch('/api/register', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(data)
+            });
+            const result = await res.json();
+            
+            if (result.success) {
+                alert('Registro exitoso. Ahora inicia sesión.');
+                window.location.href = 'login.html';
+            } else {
+                alert('Error: ' + result.message);
+            }
+        });
+    </script>
+</body>
+</html>
