@@ -220,7 +220,6 @@ function saveUserChanges() {
         planFinal = planInput.value.trim();
     }
 
-    // Recolectar TODOS los datos
     const data = {
         usuario: document.getElementById('editNombre').value,
         cedula: document.getElementById('editCedula').value,
@@ -230,15 +229,12 @@ function saveUserChanges() {
         edad: document.getElementById('editEdad').value,
         sexo: document.getElementById('editSexo').value,
         estado: document.getElementById('editEstado').value,
-
-        // Fechas
         f_nacimiento: document.getElementById('editNacimiento').value,
         f_ingreso: document.getElementById('editFIngreso').value,
         f_vencimiento: document.getElementById('editFVencimiento').value,
         f_examen: document.getElementById('editFExamen').value,
         f_nutricion: document.getElementById('editFNutricion').value,
         f_deportiva: document.getElementById('editFDeportiva').value,
-
         plan: planFinal
     };
 
@@ -250,11 +246,23 @@ function saveUserChanges() {
         .then(res => res.json())
         .then(response => {
             if (response.success) {
-                alert('✅ Ficha actualizada correctamente');
+                // ALERTA DE ÉXITO
+                Swal.fire({
+                    title: '¡Guardado!',
+                    text: 'La ficha del usuario ha sido actualizada.',
+                    icon: 'success',
+                    confirmButtonColor: '#2563eb' // Azul
+                });
                 closeModal();
                 loadAgenda();
             } else {
-                alert('❌ Error: ' + response.message);
+                // ALERTA DE ERROR
+                Swal.fire({
+                    title: 'Error',
+                    text: response.message,
+                    icon: 'error',
+                    confirmButtonColor: '#dc2626' // Rojo
+                });
             }
         });
 }
@@ -384,29 +392,50 @@ document.addEventListener('DOMContentLoaded', () => {
 // ==========================================
 // FASE 5: FUNCIÓN DE AGENDAR CITA
 // ==========================================
+// A. FUNCION PARA CARGAR STAFF (PONER AL INICIO O AL FINAL DE MAIN.JS)
+function loadStaffOptions() {
+    const staffSelect = document.getElementById('apptStaff');
+    if (!staffSelect) return;
+
+    fetch('/api/staff')
+        .then(res => res.json())
+        .then(staffList => {
+            staffSelect.innerHTML = '<option value="">-- Seleccionar --</option>';
+            staffList.forEach(person => {
+                const option = document.createElement('option');
+                option.value = person.id;
+                // Aquí mostramos "Nombre - Rol"
+                option.textContent = `${person.name} - ${person.role}`;
+                staffSelect.appendChild(option);
+            });
+        });
+}
+
+// B. LLAMAR A LA CARGA DE STAFF AL INICIAR
+document.addEventListener('DOMContentLoaded', () => {
+    loadStaffOptions();
+    // ... aquí sigue tu otro código del DOMContentLoaded ...
+});
+
+// C. ACTUALIZAR LA FUNCIÓN DE AGENDAR (REEMPLAZAR LA EXISTENTE)
 function bookAppointment() {
     const userId = document.getElementById('editUserId').value;
+    const staffId = document.getElementById('apptStaff').value;
     const date = document.getElementById('apptDate').value;
     const time = document.getElementById('apptTime').value;
 
-    if (!date || !time) {
-        alert('⚠️ Por favor selecciona Fecha y Hora.');
+    if (!date || !time || !staffId) {
+        Swal.fire('Campos incompletos', 'Por favor completa Entrenador, Fecha y Hora.', 'warning');
         return;
     }
 
-    // Validar que la fecha no sea en el pasado (Opcional)
     const today = new Date().toISOString().split('T')[0];
     if (date < today) {
-        alert('⚠️ No puedes agendar citas en fechas pasadas.');
+        Swal.fire('Fecha inválida', 'No puedes agendar citas en el pasado.', 'error');
         return;
     }
 
-    const data = {
-        userId: userId,
-        fecha: date,
-        hora: time,
-        staffId: 3 // Por defecto asignamos al ID 3 (puedes cambiarlo si agregas un selector de Staff)
-    };
+    const data = { userId, staffId, fecha: date, hora: time };
 
     fetch('/api/appointments', {
         method: 'POST',
@@ -416,14 +445,19 @@ function bookAppointment() {
         .then(res => res.json())
         .then(response => {
             if (response.success) {
-                alert(response.message);
+                Swal.fire({
+                    title: '¡Cita Agendada!',
+                    text: response.message,
+                    icon: 'success',
+                    confirmButtonColor: '#2563eb'
+                });
                 // Limpiar campos
                 document.getElementById('apptDate').value = '';
                 document.getElementById('apptTime').value = '';
-                // Recargar la agenda principal del dashboard por si la cita es hoy
+                document.getElementById('apptStaff').value = '';
                 loadAgenda();
             } else {
-                alert('❌ Error: ' + response.message);
+                Swal.fire('No se pudo agendar', response.message, 'error');
             }
         });
 }
@@ -436,24 +470,23 @@ function registerNewUser() {
     const cedula = document.getElementById('newCedula').value;
 
     if (!nombre || !cedula) {
-        alert('⚠️ Por favor completa el Nombre y la Cédula.');
+        Swal.fire('Faltan datos', 'El Nombre y la Cédula son obligatorios.', 'warning');
         return;
     }
 
-    // LÓGICA DE PLAN MANUAL
+    // Lógica Plan Manual
     const selectPlan = document.getElementById('newPlan');
     const inputPlan = document.getElementById('newPlanManual');
     let planFinal = selectPlan.value;
-    
+
     if (planFinal === 'Otro') {
         planFinal = inputPlan.value.trim();
         if (!planFinal) {
-            alert('⚠️ Seleccionaste "Otro" plan pero no escribiste el nombre.');
+            Swal.fire('Atención', 'Seleccionaste "Otro" pero no escribiste el nombre del plan.', 'warning');
             return;
         }
     }
 
-    // RECOLECTAR DATOS (AHORA CON VENCIMIENTO)
     const data = {
         usuario: nombre,
         cedula: cedula,
@@ -464,7 +497,7 @@ function registerNewUser() {
         sexo: document.getElementById('newSexo').value,
         plan: planFinal,
         f_ingreso: document.getElementById('newIngreso').value,
-        f_vencimiento: document.getElementById('newVencimiento').value // <--- NUEVO CAMPO
+        f_vencimiento: document.getElementById('newVencimiento').value
     };
 
     fetch('/api/users/create', {
@@ -472,23 +505,130 @@ function registerNewUser() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data)
     })
-    .then(res => res.json())
-    .then(response => {
-        if (response.success) {
-            alert(response.message);
-            document.getElementById('newUserModal').classList.add('hidden');
-            document.getElementById('createUserForm').reset();
-            
-            // Restablecer estilos del select
-            document.getElementById('boxNewPlanInput').classList.add('hidden');
-            document.getElementById('boxNewPlanSelect').classList.remove('w-1/2');
-            document.getElementById('boxNewPlanSelect').classList.add('w-full');
-            
-            // Poner fecha de hoy por defecto otra vez para el siguiente
-            document.getElementById('newIngreso').value = new Date().toISOString().split('T')[0];
-        } else {
-            alert('❌ Error: ' + response.message);
-        }
-    })
-    .catch(err => alert('❌ Error de conexión.'));
+        .then(res => res.json())
+        .then(response => {
+            if (response.success) {
+                Swal.fire('¡Registrado!', response.message, 'success');
+
+                document.getElementById('newUserModal').classList.add('hidden');
+                document.getElementById('createUserForm').reset();
+
+                // Reset visual del plan
+                document.getElementById('boxNewPlanInput').classList.add('hidden');
+                document.getElementById('boxNewPlanSelect').classList.remove('w-1/2');
+                document.getElementById('boxNewPlanSelect').classList.add('w-full');
+                document.getElementById('newIngreso').value = new Date().toISOString().split('T')[0];
+            } else {
+                Swal.fire('Error', response.message, 'error');
+            }
+        })
+        .catch(err => Swal.fire('Error', 'Fallo de conexión con el servidor.', 'error'));
 }
+
+
+
+// ==========================================
+// GESTIÓN DE RESERVAS (CALENDARIO/LISTA)
+// ==========================================
+// ABRIR MODAL DE RESERVAS
+function openReservationsModal() {
+    document.getElementById('reservationsModal').classList.remove('hidden');
+    loadAllReservations(); // Cargar datos al abrir
+}
+
+// ... (El resto de funciones loadAllReservations y cancelReservation se mantienen igual que en el paso anterior)
+// 1. Función para cargar reservas
+function loadAllReservations(query = '') {
+    const tableBody = document.getElementById('reservasTableBody');
+    if (!tableBody) return; // Si no existe la tabla, no hacemos nada
+
+    fetch(`/api/appointments/all?q=${query}`)
+        .then(res => res.json())
+        .then(reservas => {
+            tableBody.innerHTML = '';
+
+            if (reservas.length === 0) {
+                tableBody.innerHTML = `<tr><td colspan="6" class="p-6 text-center text-gray-500">No se encontraron reservas.</td></tr>`;
+                return;
+            }
+
+            reservas.forEach(reserva => {
+                // Formatear fecha
+                const fechaObj = new Date(reserva.appointment_date);
+                // Ajuste de zona horaria simple para visualización correcta
+                const fechaStr = fechaObj.toLocaleDateString('es-ES', { timeZone: 'UTC' });
+                const horaStr = reserva.start_time.substring(0, 5);
+
+                // Definir colores según estado
+                let estadoBadge = '';
+                let btnCancel = '';
+
+                if (reserva.status === 'confirmed') {
+                    estadoBadge = `<span class="bg-green-100 text-green-700 px-2 py-1 rounded-full text-xs font-bold">Confirmada</span>`;
+                    // Botón de cancelar solo si está confirmada
+                    btnCancel = `
+                        <button onclick="cancelReservation(${reserva.id})" 
+                            class="bg-red-100 text-red-600 hover:bg-red-200 px-3 py-1 rounded text-xs font-bold transition">
+                            Cancelar
+                        </button>`;
+                } else {
+                    estadoBadge = `<span class="bg-gray-100 text-gray-500 px-2 py-1 rounded-full text-xs font-bold">Cancelada</span>`;
+                    btnCancel = `<span class="text-gray-300 text-xs">-</span>`;
+                }
+
+                const row = document.createElement('tr');
+                row.className = 'hover:bg-gray-50 transition';
+                row.innerHTML = `
+                    <td class="p-4 font-medium text-gray-800">${fechaStr}</td>
+                    <td class="p-4">${horaStr}</td>
+                    <td class="p-4 font-bold text-blue-900">${reserva.cliente}</td>
+                    <td class="p-4 text-gray-500">${reserva.entrenador}</td>
+                    <td class="p-4">${estadoBadge}</td>
+                    <td class="p-4 text-center">${btnCancel}</td>
+                `;
+                tableBody.appendChild(row);
+            });
+        });
+}
+
+// 2. Función para Cancelar
+function cancelReservation(id) {
+    Swal.fire({
+        title: '¿Cancelar Cita?',
+        text: "Esta acción liberará el cupo y no se puede deshacer.",
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#dc2626', // Rojo
+        cancelButtonColor: '#6b7280',
+        confirmButtonText: 'Sí, cancelar cita',
+        cancelButtonText: 'No, mantenerla'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            fetch(`/api/appointments/${id}/cancel`, { method: 'PUT' })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        Swal.fire('Cancelada', 'La cita ha sido cancelada correctamente.', 'success');
+                        loadAllReservations();
+                        loadAgenda();
+                    } else {
+                        Swal.fire('Error', 'No se pudo cancelar la cita.', 'error');
+                    }
+                });
+        }
+    });
+}
+
+// 3. Activar el Buscador de Reservas y Carga Inicial
+document.addEventListener('DOMContentLoaded', () => {
+    // Cargar lista inicial
+    loadAllReservations();
+
+    // Escuchar el input de búsqueda
+    const inputSearchReserva = document.getElementById('searchReserva');
+    if (inputSearchReserva) {
+        inputSearchReserva.addEventListener('input', (e) => {
+            loadAllReservations(e.target.value);
+        });
+    }
+});

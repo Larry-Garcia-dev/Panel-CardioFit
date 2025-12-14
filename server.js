@@ -349,46 +349,71 @@ app.put('/api/users/:id/freeze', (req, res) => {
     });
 });
 
+
+// --- AGREGAR ESTO JUNTO A TUS OTRAS RUTAS GET ---
+
+// Nuevo: Obtener lista de Staff (Entrenadores, Fisio, etc.)
+app.get('/api/staff', (req, res) => {
+    // Solo traemos a los activos
+    const sql = 'SELECT id, name, role FROM staff WHERE is_active = 1 ORDER BY name ASC';
+    db.query(sql, (err, results) => {
+        if (err) return res.status(500).json({ error: 'Error db' });
+        res.json(results);
+    });
+});
+
 // ==========================================
 // 10. Agendar Cita (Fase 5)
 // ==========================================//
+// 10. Agendar Cita (CON VALIDACIÓN DE AFORO 5 PERSONAS)
 app.post('/api/appointments', (req, res) => {
     const { userId, fecha, hora, staffId } = req.body;
 
     // Validación básica
-    if (!userId || !fecha || !hora) {
-        return res.status(400).json({ success: false, message: 'Faltan datos (Fecha u Hora).' });
+    if (!userId || !fecha || !hora || !staffId) {
+        return res.status(400).json({ success: false, message: 'Faltan datos: Debes seleccionar Entrenador, Fecha y Hora.' });
     }
 
-    // A. Validar que la hora sea en punto (Ej: "08:00", no "08:30")
     if (!hora.endsWith(':00') && !hora.endsWith(':00:00')) {
         return res.status(400).json({ success: false, message: 'Las citas solo pueden ser en horas en punto.' });
     }
 
-    // B. Verificar si el usuario ya tiene cita ese día y a esa hora
-    const checkSql = 'SELECT * FROM appointments WHERE user_id = ? AND appointment_date = ? AND start_time = ?';
-    db.query(checkSql, [userId, fecha, hora], (err, results) => {
-        if (err) return res.status(500).json({ success: false, message: 'Error verificando disponibilidad.' });
+    // A. VALIDACIÓN DE AFORO (MÁXIMO 5 PERSONAS POR ENTRENADOR A ESA HORA)
+    const countSql = `
+        SELECT COUNT(*) as total 
+        FROM appointments 
+        WHERE staff_id = ? AND appointment_date = ? AND start_time = ? AND status = 'confirmed'
+    `;
 
-        if (results.length > 0) {
-            return res.status(400).json({ success: false, message: 'El usuario ya tiene una cita agendada a esta hora.' });
+    db.query(countSql, [staffId, fecha, hora], (err, results) => {
+        if (err) return res.status(500).json({ success: false, message: 'Error verificando cupos.' });
+        
+        const ocupacion = results[0].total;
+        
+        // Si ya hay 5 o más, bloqueamos
+        if (ocupacion >= 5) {
+            return res.status(400).json({ success: false, message: `⚠️ Cupo lleno. Este entrenador ya tiene ${ocupacion} citas a esa hora.` });
         }
 
-        // C. Insertar la cita
-        // Nota: Asignamos staff_id = 3 (Adriana) por defecto si no se elige, para que no falle.
-        // Calculamos end_time sumando 1 hora.
-        const finalStaff = staffId || 3;
-        const insertSql = `
-            INSERT INTO appointments (user_id, staff_id, appointment_date, start_time, end_time, status) 
-            VALUES (?, ?, ?, ?, ADDTIME(?, '01:00:00'), 'confirmed')
-        `;
+        // B. Validar duplicados del usuario (No puede tener 2 citas a la misma hora)
+        const checkUserSql = 'SELECT * FROM appointments WHERE user_id = ? AND appointment_date = ? AND start_time = ?';
+        db.query(checkUserSql, [userId, fecha, hora], (err, userResults) => {
+            if (err) return res.status(500).json({ success: false, message: 'Error verificando usuario.' });
 
-        db.query(insertSql, [userId, finalStaff, fecha, hora, hora], (err, result) => {
-            if (err) {
-                console.error(err);
-                return res.status(500).json({ success: false, message: 'Error al guardar la cita en BD.' });
+            if (userResults.length > 0) {
+                return res.status(400).json({ success: false, message: 'Este usuario ya tiene cita a esa hora.' });
             }
-            res.json({ success: true, message: '✅ Cita agendada correctamente.' });
+
+            // C. Insertar la cita
+            const insertSql = `
+                INSERT INTO appointments (user_id, staff_id, appointment_date, start_time, end_time, status) 
+                VALUES (?, ?, ?, ?, ADDTIME(?, '01:00:00'), 'confirmed')
+            `;
+
+            db.query(insertSql, [userId, staffId, fecha, hora, hora], (err, result) => {
+                if (err) return res.status(500).json({ success: false, message: 'Error al agendar.' });
+                res.json({ success: true, message: '✅ Cita agendada correctamente.' });
+            });
         });
     });
 });
@@ -463,6 +488,47 @@ app.post('/api/users/create', (req, res) => {
             }
             res.json({ success: true, message: '✅ Cliente registrado exitosamente.' });
         });
+    });
+});
+
+// ==========================================
+// 12. GESTIÓN DE RESERVAS (VER TODAS Y CANCELAR)
+// ==========================================
+
+// A. Ver todas las reservas (con buscador)
+app.get('/api/appointments/all', (req, res) => {
+    const query = req.query.q || ''; // Texto del buscador
+    
+    const sql = `
+        SELECT a.id, a.appointment_date, a.start_time, a.status, 
+               u.USUARIO as cliente, s.name as entrenador
+        FROM appointments a
+        JOIN users u ON a.user_id = u.id
+        JOIN staff s ON a.staff_id = s.id
+        WHERE u.USUARIO LIKE ? OR s.name LIKE ?
+        ORDER BY a.appointment_date DESC, a.start_time ASC
+        LIMIT 50
+    `;
+
+    const searchTerm = `%${query}%`;
+
+    db.query(sql, [searchTerm, searchTerm], (err, results) => {
+        if (err) {
+            console.error(err);
+            return res.status(500).json({ error: 'Error cargando reservas' });
+        }
+        res.json(results);
+    });
+});
+
+// B. Cancelar una reserva
+app.put('/api/appointments/:id/cancel', (req, res) => {
+    const id = req.params.id;
+    const sql = "UPDATE appointments SET status = 'cancelled' WHERE id = ?";
+
+    db.query(sql, [id], (err, result) => {
+        if (err) return res.status(500).json({ success: false, message: 'Error al cancelar' });
+        res.json({ success: true, message: 'Cita cancelada correctamente' });
     });
 });
 // Iniciar Servidor
