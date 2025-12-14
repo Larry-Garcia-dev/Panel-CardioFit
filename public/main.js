@@ -154,19 +154,19 @@ function openUserModal(id) {
             // ---------------------------------------------------------
             const freezeStart = document.getElementById('freezeStart');
             const freezeEnd = document.getElementById('freezeEnd');
-            
+
             // 1. Obtener fecha de hoy en formato YYYY-MM-DD
             const today = new Date().toISOString().split('T')[0];
 
             // 2. Configurar límites
             // El inicio no puede ser antes de hoy
-            freezeStart.min = today; 
+            freezeStart.min = today;
             // El inicio no puede ser después de que se le venza el plan
-            freezeStart.max = fVencimiento; 
-            
+            freezeStart.max = fVencimiento;
+
             // El fin tampoco puede pasar del vencimiento original
             freezeEnd.max = fVencimiento;
-            
+
             // Limpiamos valores previos para evitar errores
             freezeStart.value = '';
             freezeEnd.value = '';
@@ -179,12 +179,32 @@ function openUserModal(id) {
             if (planesEstandar.includes(userPlan)) {
                 planSelect.value = userPlan;
                 planInput.classList.add('hidden');
-                planInput.value = ""; 
+                planInput.value = "";
             } else {
                 planSelect.value = "Otro";
                 planInput.classList.remove('hidden');
-                planInput.value = userPlan; 
+                planInput.value = userPlan;
             }
+            // ... (código existente de carga de datos) ...
+
+            // LÓGICA PARA MOSTRAR INFORMACIÓN DE CONGELAMIENTO
+            const infoCongelamientoDiv = document.getElementById('infoCongelamiento');
+            const viewInicio = document.getElementById('viewInicioCongelamiento');
+            const viewFin = document.getElementById('viewFinCongelamiento');
+
+            if (user.ESTADO === 'CONGELADO') {
+                // Si está congelado, mostramos el cuadro y llenamos las fechas
+                infoCongelamientoDiv.classList.remove('hidden');
+                viewInicio.value = formatDateForInput(user.F_INICIO_CONGELAMIENTO);
+                viewFin.value = formatDateForInput(user.F_FIN_CONGELAMIENTO);
+            } else {
+                // Si está activo o inactivo, ocultamos ese cuadro
+                infoCongelamientoDiv.classList.add('hidden');
+                viewInicio.value = '';
+                viewFin.value = '';
+            }
+
+            modal.classList.remove('hidden');
 
             modal.classList.remove('hidden');
         });
@@ -193,7 +213,7 @@ function openUserModal(id) {
 
 function saveUserChanges() {
     const id = document.getElementById('editUserId').value;
-    
+
     // Determinar Plan Final
     let planFinal = planSelect.value;
     if (planFinal === 'Otro') {
@@ -210,7 +230,7 @@ function saveUserChanges() {
         edad: document.getElementById('editEdad').value,
         sexo: document.getElementById('editSexo').value,
         estado: document.getElementById('editEstado').value,
-        
+
         // Fechas
         f_nacimiento: document.getElementById('editNacimiento').value,
         f_ingreso: document.getElementById('editFIngreso').value,
@@ -218,31 +238,31 @@ function saveUserChanges() {
         f_examen: document.getElementById('editFExamen').value,
         f_nutricion: document.getElementById('editFNutricion').value,
         f_deportiva: document.getElementById('editFDeportiva').value,
-        
+
         plan: planFinal
     };
 
     fetch(`/api/users/${id}`, {
         method: 'PUT',
-        headers: {'Content-Type': 'application/json'},
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data)
     })
-    .then(res => res.json())
-    .then(response => {
-        if (response.success) {
-            alert('✅ Ficha actualizada correctamente');
-            closeModal();
-            loadAgenda(); 
-        } else {
-            alert('❌ Error: ' + response.message);
-        }
-    });
+        .then(res => res.json())
+        .then(response => {
+            if (response.success) {
+                alert('✅ Ficha actualizada correctamente');
+                closeModal();
+                loadAgenda();
+            } else {
+                alert('❌ Error: ' + response.message);
+            }
+        });
 }
 
 // ==========================================
 // FUNCIÓN PARA CERRAR MODAL (AGREGAR AL FINAL DE MAIN.JS)
 // ==========================================
-window.closeModal = function() {
+window.closeModal = function () {
     const modal = document.getElementById('userModal');
     // Verificamos que el modal exista antes de intentar cerrarlo
     if (modal) {
@@ -253,7 +273,7 @@ window.closeModal = function() {
 // ==========================================
 // FASE 4: FUNCIÓN DE CONGELAMIENTO
 // ==========================================
-window.freezeMembership = function() {
+window.freezeMembership = function () {
     const id = document.getElementById('editUserId').value;
     const start = document.getElementById('freezeStart').value;
     const end = document.getElementById('freezeEnd').value;
@@ -279,20 +299,20 @@ window.freezeMembership = function() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ fechaInicio: start, fechaFin: end })
     })
-    .then(res => res.json())
-    .then(data => {
-        if (data.success) {
-            alert('❄️ ' + data.message);
-            // Recargamos el modal para ver el cambio de fecha inmediato
-            openUserModal(id);
-            
-            // Limpiamos los inputs de fecha
-            document.getElementById('freezeStart').value = '';
-            document.getElementById('freezeEnd').value = '';
-        } else {
-            alert('❌ Error: ' + data.message);
-        }
-    });
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                alert('❄️ ' + data.message);
+                // Recargamos el modal para ver el cambio de fecha inmediato
+                openUserModal(id);
+
+                // Limpiamos los inputs de fecha
+                document.getElementById('freezeStart').value = '';
+                document.getElementById('freezeEnd').value = '';
+            } else {
+                alert('❌ Error: ' + data.message);
+            }
+        });
 }
 
 // ==========================================
@@ -302,15 +322,59 @@ document.addEventListener('DOMContentLoaded', () => {
     const startInput = document.getElementById('freezeStart');
     const endInput = document.getElementById('freezeEnd');
 
-    if(startInput && endInput) {
+    if (startInput && endInput) {
         startInput.addEventListener('change', (e) => {
             // Cuando cambie la fecha de inicio, la fecha fin
             // NO puede ser menor a la fecha de inicio seleccionada.
             endInput.min = e.target.value;
-            
+
             // Si ya había una fecha fin seleccionada y es menor, la borramos
-            if(endInput.value && endInput.value < e.target.value) {
+            if (endInput.value && endInput.value < e.target.value) {
                 endInput.value = '';
+            }
+        });
+    }
+    // ==========================================
+    // LÓGICA INTERACTIVA: MOSTRAR/OCULTAR INPUT DE PLAN
+    // ==========================================
+    const selectPlan = document.getElementById('planSelect');
+    const inputPlan = document.getElementById('planManualInput');
+
+    if (selectPlan && inputPlan) {
+        selectPlan.addEventListener('change', (e) => {
+            if (e.target.value === 'Otro') {
+                // Si elige "Otro", mostramos el campo manual
+                inputPlan.classList.remove('hidden');
+                inputPlan.focus(); // Ponemos el cursor ahí automáticamente
+            } else {
+                // Si elige un plan estándar, ocultamos y limpiamos el manual
+                inputPlan.classList.add('hidden');
+                inputPlan.value = '';
+            }
+        });
+    }
+    // 3. Lógica para Nuevo Usuario (PLAN "OTRO")
+    const newPlanSelect = document.getElementById('newPlan');
+    const boxSelect = document.getElementById('boxNewPlanSelect');
+    const boxInput = document.getElementById('boxNewPlanInput');
+    const newPlanInput = document.getElementById('newPlanManual');
+
+    if (newPlanSelect && boxInput) {
+        newPlanSelect.addEventListener('change', (e) => {
+            if (e.target.value === 'Otro') {
+                // Mostrar campo manual: reducimos el select al 50% y mostramos el input
+                boxSelect.classList.remove('w-full');
+                boxSelect.classList.add('w-1/2');
+                boxInput.classList.remove('hidden');
+                boxInput.classList.add('w-1/2');
+                newPlanInput.focus();
+            } else {
+                // Ocultar campo manual: select vuelve al 100%
+                boxInput.classList.add('hidden');
+                boxInput.classList.remove('w-1/2');
+                boxSelect.classList.remove('w-1/2');
+                boxSelect.classList.add('w-full');
+                newPlanInput.value = '';
             }
         });
     }
@@ -349,17 +413,82 @@ function bookAppointment() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data)
     })
+        .then(res => res.json())
+        .then(response => {
+            if (response.success) {
+                alert(response.message);
+                // Limpiar campos
+                document.getElementById('apptDate').value = '';
+                document.getElementById('apptTime').value = '';
+                // Recargar la agenda principal del dashboard por si la cita es hoy
+                loadAgenda();
+            } else {
+                alert('❌ Error: ' + response.message);
+            }
+        });
+}
+
+// ==========================================
+// CREAR NUEVO USUARIO (CON FECHAS INICIO Y FIN)
+// ==========================================
+function registerNewUser() {
+    const nombre = document.getElementById('newNombre').value;
+    const cedula = document.getElementById('newCedula').value;
+
+    if (!nombre || !cedula) {
+        alert('⚠️ Por favor completa el Nombre y la Cédula.');
+        return;
+    }
+
+    // LÓGICA DE PLAN MANUAL
+    const selectPlan = document.getElementById('newPlan');
+    const inputPlan = document.getElementById('newPlanManual');
+    let planFinal = selectPlan.value;
+    
+    if (planFinal === 'Otro') {
+        planFinal = inputPlan.value.trim();
+        if (!planFinal) {
+            alert('⚠️ Seleccionaste "Otro" plan pero no escribiste el nombre.');
+            return;
+        }
+    }
+
+    // RECOLECTAR DATOS (AHORA CON VENCIMIENTO)
+    const data = {
+        usuario: nombre,
+        cedula: cedula,
+        telefono: document.getElementById('newTelefono').value,
+        correo: document.getElementById('newCorreo').value,
+        direccion: document.getElementById('newDireccion').value,
+        f_nacimiento: document.getElementById('newNacimiento').value,
+        sexo: document.getElementById('newSexo').value,
+        plan: planFinal,
+        f_ingreso: document.getElementById('newIngreso').value,
+        f_vencimiento: document.getElementById('newVencimiento').value // <--- NUEVO CAMPO
+    };
+
+    fetch('/api/users/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+    })
     .then(res => res.json())
     .then(response => {
         if (response.success) {
             alert(response.message);
-            // Limpiar campos
-            document.getElementById('apptDate').value = '';
-            document.getElementById('apptTime').value = '';
-            // Recargar la agenda principal del dashboard por si la cita es hoy
-            loadAgenda();
+            document.getElementById('newUserModal').classList.add('hidden');
+            document.getElementById('createUserForm').reset();
+            
+            // Restablecer estilos del select
+            document.getElementById('boxNewPlanInput').classList.add('hidden');
+            document.getElementById('boxNewPlanSelect').classList.remove('w-1/2');
+            document.getElementById('boxNewPlanSelect').classList.add('w-full');
+            
+            // Poner fecha de hoy por defecto otra vez para el siguiente
+            document.getElementById('newIngreso').value = new Date().toISOString().split('T')[0];
         } else {
             alert('❌ Error: ' + response.message);
         }
-    });
+    })
+    .catch(err => alert('❌ Error de conexión.'));
 }

@@ -4,6 +4,7 @@ const mysql = require('mysql2');
 const bodyParser = require('body-parser');
 const session = require('express-session');
 const path = require('path');
+const cron = require('node-cron');
 
 const app = express();
 
@@ -208,7 +209,7 @@ app.put('/api/users/:id', (req, res) => {
 });
 
 // ==========================================
-// 9. LÓGICA DE CONGELAMIENTO (FASE 4)
+// 9. LÓGICA DE CONGELAMIENTO (CORREGIDO Y COMPLETO)
 // ==========================================
 app.put('/api/users/:id/freeze', (req, res) => {
     const id = req.params.id;
@@ -249,24 +250,108 @@ app.put('/api/users/:id/freeze', (req, res) => {
             return res.status(400).json({ success: false, message: 'El rango de fechas no es válido.' });
         }
 
-        // 3. Sumar esos días a la fecha de vencimiento actual
+        // 3. Sumar esos días a la fecha de vencimiento actual (Extensión del plan)
         fechaVencimientoActual.setDate(fechaVencimientoActual.getDate() + diasCongelados);
 
-        // 4. Guardar en BD: Nueva Fecha y Estado 'CONGELADO'
-        const sqlUpdate = `UPDATE users SET F_VENCIMIENTO = ?, ESTADO = 'CONGELADO' WHERE id = ?`;
+        // ---------------------------------------------------------------
+        // 4. GUARDAR EN BD (CORRECCIÓN COMPLETA)
+        // Guardamos fecha de vencimiento extendida, estado CONGELADO, 
+        // y AMBAS fechas del rango de congelamiento (Inicio y Fin).
+        // ---------------------------------------------------------------
+        const sqlUpdate = `
+            UPDATE users 
+            SET F_VENCIMIENTO = ?, 
+                ESTADO = 'CONGELADO', 
+                F_FIN_CONGELAMIENTO = ?, 
+                F_INICIO_CONGELAMIENTO = ? 
+            WHERE id = ?
+        `;
 
-        db.query(sqlUpdate, [fechaVencimientoActual, id], (err, result) => {
+        // Pasamos fechaVencimientoActual, fechaFin, fechaInicio y el id
+        db.query(sqlUpdate, [fechaVencimientoActual, fechaFin, fechaInicio, id], (err, result) => {
             if (err) return res.status(500).json({ success: false, message: 'Error SQL al actualizar' });
 
             res.json({
                 success: true,
-                message: `Membresía congelada por ${diasCongelados} días. Se extendió el vencimiento.`
+                message: `Membresía congelada por ${diasCongelados} días. Se extendió el vencimiento y se reactivará automáticamente el ${fechaFin}.`
+            });
+        });
+    });
+});
+// ==========================================
+// 9. LÓGICA DE CONGELAMIENTO (CORREGIDO Y COMPLETO)
+// ==========================================
+app.put('/api/users/:id/freeze', (req, res) => {
+    const id = req.params.id;
+    const { fechaInicio, fechaFin } = req.body;
+
+    // Validación: Que envíen las dos fechas
+    if (!fechaInicio || !fechaFin) {
+        return res.status(400).json({ success: false, message: 'Faltan fechas de inicio o fin.' });
+    }
+
+    // 1. Buscamos la fecha de vencimiento actual del usuario
+    const sqlGet = 'SELECT F_VENCIMIENTO FROM users WHERE id = ?';
+
+    db.query(sqlGet, [id], (err, results) => {
+        if (err || results.length === 0) {
+            return res.status(500).json({ message: 'Error buscando usuario o usuario no existe' });
+        }
+
+        const currentExpiration = results[0].F_VENCIMIENTO;
+
+        // Si el usuario no tiene fecha de vencimiento (es nuevo), no podemos extender nada
+        if (!currentExpiration) {
+            return res.status(400).json({ success: false, message: 'Este usuario no tiene fecha de vencimiento para extender.' });
+        }
+
+        let fechaVencimientoActual = new Date(currentExpiration);
+
+        // 2. CÁLCULO MATEMÁTICO: Diferencia de días
+        const dInicio = new Date(fechaInicio);
+        const dFin = new Date(fechaFin);
+
+        // Calcular diferencia en milisegundos y convertir a días
+        // (1000ms * 60s * 60m * 24h) = Milisegundos en un día
+        const diffTime = Math.abs(dFin - dInicio);
+        const diasCongelados = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+        if (diasCongelados <= 0) {
+            return res.status(400).json({ success: false, message: 'El rango de fechas no es válido.' });
+        }
+
+        // 3. Sumar esos días a la fecha de vencimiento actual (Extensión del plan)
+        fechaVencimientoActual.setDate(fechaVencimientoActual.getDate() + diasCongelados);
+
+        // ---------------------------------------------------------------
+        // 4. GUARDAR EN BD (CORRECCIÓN COMPLETA)
+        // Guardamos fecha de vencimiento extendida, estado CONGELADO, 
+        // y AMBAS fechas del rango de congelamiento (Inicio y Fin).
+        // ---------------------------------------------------------------
+        const sqlUpdate = `
+            UPDATE users 
+            SET F_VENCIMIENTO = ?, 
+                ESTADO = 'CONGELADO', 
+                F_FIN_CONGELAMIENTO = ?, 
+                F_INICIO_CONGELAMIENTO = ? 
+            WHERE id = ?
+        `;
+
+        // Pasamos fechaVencimientoActual, fechaFin, fechaInicio y el id
+        db.query(sqlUpdate, [fechaVencimientoActual, fechaFin, fechaInicio, id], (err, result) => {
+            if (err) return res.status(500).json({ success: false, message: 'Error SQL al actualizar' });
+
+            res.json({
+                success: true,
+                message: `Membresía congelada por ${diasCongelados} días. Se extendió el vencimiento y se reactivará automáticamente el ${fechaFin}.`
             });
         });
     });
 });
 
+// ==========================================
 // 10. Agendar Cita (Fase 5)
+// ==========================================//
 app.post('/api/appointments', (req, res) => {
     const { userId, fecha, hora, staffId } = req.body;
 
@@ -308,6 +393,78 @@ app.post('/api/appointments', (req, res) => {
     });
 });
 
+// ==========================================
+// TAREA AUTOMÁTICA: DESCONGELAMIENTO DIARIO
+// ==========================================
+// Se ejecuta todos los días a las 00:01 AM
+cron.schedule('1 0 * * *', () => {
+    console.log('🔄 Verificando usuarios congelados...');
+
+    // Busca usuarios congelados cuya fecha de fin ya pasó o es hoy
+    const sql = `
+        UPDATE users 
+        SET ESTADO = 'ACTIVO', F_FIN_CONGELAMIENTO = NULL 
+        WHERE ESTADO = 'CONGELADO' AND F_FIN_CONGELAMIENTO <= CURDATE()
+    `;
+
+    db.query(sql, (err, result) => {
+        if (err) {
+            console.error('❌ Error en tarea automática:', err);
+        } else if (result.changedRows > 0) {
+            console.log(`✅ Sistema: Se reactivaron ${result.changedRows} usuarios automáticamente.`);
+        } else {
+            console.log('ℹ️ No hubo usuarios para reactivar hoy.');
+        }
+    });
+});
+
+// ==========================================
+// 11. CREAR NUEVO USUARIO (CON VENCIMIENTO)
+// ==========================================
+app.post('/api/users/create', (req, res) => {
+    // 1. Recibimos f_vencimiento del frontend
+    const { usuario, cedula, telefono, correo, plan, f_ingreso, f_vencimiento, f_nacimiento, sexo, direccion } = req.body;
+
+    // A. Validaciones básicas
+    if (!usuario || !cedula) {
+        return res.status(400).json({ success: false, message: '⚠️ Nombre y Cédula son obligatorios.' });
+    }
+
+    // B. Verificar duplicados
+    const checkSql = 'SELECT id FROM users WHERE N_CEDULA = ?';
+    db.query(checkSql, [cedula], (err, results) => {
+        if (err) return res.status(500).json({ success: false, message: 'Error verificando duplicados.' });
+
+        if (results.length > 0) {
+            return res.status(400).json({ success: false, message: '⛔ Ya existe un usuario registrado con esta Cédula.' });
+        }
+
+        // C. Insertar (AHORA INCLUIMOS F_VENCIMIENTO)
+        const insertSql = `
+            INSERT INTO users (
+                USUARIO, N_CEDULA, TELEFONO, CORREO_ELECTRONICO, PLAN, 
+                F_INGRESO, F_VENCIMIENTO, F_N, SEXO, DIRECCION_O_BARRIO, ESTADO
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVO')
+        `;
+
+        // Validamos fechas vacías para evitar errores
+        const fechaIngreso = f_ingreso || new Date();
+        const fechaVencimiento = f_vencimiento || null; // Si no ponen fecha, queda NULL
+
+        const values = [
+            usuario, cedula, telefono, correo, plan,
+            fechaIngreso, fechaVencimiento, f_nacimiento, sexo, direccion
+        ];
+
+        db.query(insertSql, values, (err, result) => {
+            if (err) {
+                console.error(err);
+                return res.status(500).json({ success: false, message: 'Error al guardar en base de datos.' });
+            }
+            res.json({ success: true, message: '✅ Cliente registrado exitosamente.' });
+        });
+    });
+});
 // Iniciar Servidor
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
