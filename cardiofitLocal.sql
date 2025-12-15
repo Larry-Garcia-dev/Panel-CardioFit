@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Servidor: 127.0.0.1
--- Tiempo de generación: 13-12-2025 a las 22:01:41
+-- Tiempo de generación: 15-12-2025 a las 21:45:26
 -- Versión del servidor: 10.4.32-MariaDB
 -- Versión de PHP: 8.2.12
 
@@ -124,6 +124,26 @@ DELIMITER ;
 -- --------------------------------------------------------
 
 --
+-- Estructura de tabla para la tabla `admins`
+--
+
+CREATE TABLE `admins` (
+  `id` int(11) NOT NULL,
+  `nombre` varchar(100) NOT NULL,
+  `email` varchar(100) NOT NULL,
+  `password` varchar(255) NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Volcado de datos para la tabla `admins`
+--
+
+INSERT INTO `admins` (`id`, `nombre`, `email`, `password`) VALUES
+(1, 'Larry Garcia', 'garcialarry575@gmail.com', 'Laxky0338c');
+
+-- --------------------------------------------------------
+
+--
 -- Estructura de tabla para la tabla `appointments`
 --
 
@@ -137,6 +157,19 @@ CREATE TABLE `appointments` (
   `status` enum('confirmed','cancelled') DEFAULT 'confirmed',
   `created_at` timestamp NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
+
+--
+-- Volcado de datos para la tabla `appointments`
+--
+
+INSERT INTO `appointments` (`id`, `user_id`, `staff_id`, `appointment_date`, `start_time`, `end_time`, `status`, `created_at`) VALUES
+(59, 1, 3, '2025-12-13', '15:00:00', '16:00:00', 'cancelled', '2025-12-13 22:03:29'),
+(60, 1, 3, '2025-12-13', '10:00:00', '11:00:00', 'cancelled', '2025-12-13 23:51:46'),
+(61, 1, 3, '2025-12-13', '11:00:00', '12:00:00', 'cancelled', '2025-12-13 23:52:15'),
+(62, 406, 3, '2025-12-14', '07:00:00', '08:00:00', 'cancelled', '2025-12-14 22:45:36'),
+(63, 406, 3, '2025-12-16', '04:00:00', '05:00:00', 'cancelled', '2025-12-14 23:19:18'),
+(64, 406, 5, '2025-12-17', '18:00:00', '19:00:00', 'cancelled', '2025-12-14 23:24:51'),
+(65, 407, 6, '2025-12-14', '20:00:00', '21:00:00', 'cancelled', '2025-12-14 23:42:10');
 
 -- --------------------------------------------------------
 
@@ -189,15 +222,19 @@ CREATE TABLE `users` (
   `F_CITA_MED_DEPORTIVA` date DEFAULT NULL,
   `DIRECCION_O_BARRIO` varchar(255) DEFAULT NULL,
   `TELEFONO` varchar(50) DEFAULT NULL,
-  `CORREO_ELECTRONICO` varchar(255) DEFAULT NULL
+  `CORREO_ELECTRONICO` varchar(255) DEFAULT NULL,
+  `F_FIN_CONGELAMIENTO` date DEFAULT NULL,
+  `F_INICIO_CONGELAMIENTO` date DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
 -- Volcado de datos para la tabla `users`
 --
 
-INSERT INTO `users` (`id`, `USUARIO`, `F_INGRESO`, `F_VENCIMIENTO`, `PLAN`, `ESTADO`, `N_CEDULA`, `F_N`, `EDAD`, `SEXO`, `F_EXAMEN_LABORATORIO`, `F_CITA_NUTRICION`, `F_CITA_MED_DEPORTIVA`, `DIRECCION_O_BARRIO`, `TELEFONO`, `CORREO_ELECTRONICO`) VALUES
-(1, 'Ana Maria Sanabria Clavijo', '2024-08-06', NULL, 'Experiencia Fitness plan básico', 'INACTIVO', NULL, '1983-12-27', NULL, 'F', '2024-08-14', NULL, NULL, NULL, '3057135860', 'anamasanabria@hotmail.com');
+INSERT INTO `users` (`id`, `USUARIO`, `F_INGRESO`, `F_VENCIMIENTO`, `PLAN`, `ESTADO`, `N_CEDULA`, `F_N`, `EDAD`, `SEXO`, `F_EXAMEN_LABORATORIO`, `F_CITA_NUTRICION`, `F_CITA_MED_DEPORTIVA`, `DIRECCION_O_BARRIO`, `TELEFONO`, `CORREO_ELECTRONICO`, `F_FIN_CONGELAMIENTO`, `F_INICIO_CONGELAMIENTO`) VALUES
+(1, 'Ana Maria Sanabria Clavijos', '2025-12-13', '2026-01-26', 'EXPERIENCIA FITNESS PLAN BÁSICO', 'ACTIVO', '1109000586', '2025-12-10', 12, 'F', '2025-12-24', '2025-12-30', '2026-01-07', 'La ceiba', '3057135861', 'anaamasanabria@hotmail.com', '2025-12-17', '2025-12-14'),
+(406, 'Larry garcia', '2025-12-14', '2026-01-14', 'Gorditos Anonimos Dislexicos', 'ACTIVO', '1109000587', '2001-05-31', NULL, 'M', NULL, NULL, NULL, 'Rovira', '3173328716', 'garcialarry575@gmail.com', NULL, NULL),
+(407, 'Larry garcias', '2025-12-14', '2025-12-30', 'EXPERIENCIA FITNESS DE LUJO', 'ACTIVO', '11090005872', '2025-12-11', 12, 'F', NULL, NULL, NULL, 'Rovira22', '31733287163', 'garcialar22ry575@gmail.com', NULL, NULL);
 
 -- --------------------------------------------------------
 
@@ -302,6 +339,13 @@ INSERT INTO `weeklyschedules` (`id`, `staff_id`, `day_of_week`, `start_time`, `e
 --
 
 --
+-- Indices de la tabla `admins`
+--
+ALTER TABLE `admins`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `email` (`email`);
+
+--
 -- Indices de la tabla `appointments`
 --
 ALTER TABLE `appointments`
@@ -334,10 +378,16 @@ ALTER TABLE `weeklyschedules`
 --
 
 --
+-- AUTO_INCREMENT de la tabla `admins`
+--
+ALTER TABLE `admins`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+
+--
 -- AUTO_INCREMENT de la tabla `appointments`
 --
 ALTER TABLE `appointments`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=59;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=66;
 
 --
 -- AUTO_INCREMENT de la tabla `staff`
@@ -349,7 +399,7 @@ ALTER TABLE `staff`
 -- AUTO_INCREMENT de la tabla `users`
 --
 ALTER TABLE `users`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=406;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=408;
 
 --
 -- AUTO_INCREMENT de la tabla `weeklyschedules`

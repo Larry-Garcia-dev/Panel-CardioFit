@@ -91,7 +91,7 @@ app.get('/logout', (req, res) => {
 // --- NUEVAS RUTAS FASE 2 ---
 
 // 5. Buscador Inteligente
-app.get('/api/users/search', (req, res) => {
+app.get('/api/Users/search', (req, res) => {
     const query = req.query.q; // Lo que escribe el usuario
     if (!query) return res.json([]);
 
@@ -99,7 +99,7 @@ app.get('/api/users/search', (req, res) => {
     // Usamos LOWER() para que no importen mayúsculas/minúsculas
     const sql = `
         SELECT id, USUARIO, N_CEDULA, CORREO_ELECTRONICO, TELEFONO, ESTADO 
-        FROM users 
+        FROM Users 
         WHERE USUARIO LIKE ? 
            OR N_CEDULA LIKE ? 
            OR CORREO_ELECTRONICO LIKE ? 
@@ -119,14 +119,14 @@ app.get('/api/users/search', (req, res) => {
 });
 
 // 6. Agenda del Día (Citas de HOY)
-app.get('/api/appointments/today', (req, res) => {
+app.get('/api/Appointments/today', (req, res) => {
     // Obtenemos citas donde la fecha sea CURDATE() (la fecha de hoy del servidor MySQL)
-    // Hacemos JOIN para traer el nombre del usuario y del entrenador (staff)
+    // Hacemos JOIN para traer el nombre del usuario y del entrenador (Staff)
     const sql = `
         SELECT a.id, a.start_time, a.end_time, u.USUARIO as cliente, s.name as entrenador
-        FROM appointments a
-        JOIN users u ON a.user_id = u.id
-        JOIN staff s ON a.staff_id = s.id
+        FROM Appointments a
+        JOIN Users u ON a.user_id = u.id
+        JOIN Staff s ON a.Staff_id = s.id
         WHERE a.appointment_date = CURDATE()
         ORDER BY a.start_time ASC
     `;
@@ -143,8 +143,8 @@ app.get('/api/appointments/today', (req, res) => {
 // --- NUEVAS RUTAS FASE 3 (EDICIÓN) ---
 
 // 7. Obtener detalles de un usuario específico
-app.get('/api/users/:id', (req, res) => {
-    const sql = 'SELECT * FROM users WHERE id = ?';
+app.get('/api/Users/:id', (req, res) => {
+    const sql = 'SELECT * FROM Users WHERE id = ?';
     db.query(sql, [req.params.id], (err, result) => {
         if (err) return res.status(500).json({ error: 'Error db' });
         if (result.length === 0) return res.status(404).json({ error: 'Usuario no encontrado' });
@@ -153,7 +153,7 @@ app.get('/api/users/:id', (req, res) => {
 });
 
 // 8. Actualizar Usuario (VERSIÓN BLINDADA)
-app.put('/api/users/:id', (req, res) => {
+app.put('/api/Users/:id', (req, res) => {
     const id = req.params.id;
 
     // Función para limpiar datos vacíos (Evita errores con fechas e ints)
@@ -169,7 +169,7 @@ app.put('/api/users/:id', (req, res) => {
     console.log(`📝 Actualizando ID ${id}:`, { usuario, direccion, edad, f_nacimiento });
 
     const sql = `
-        UPDATE users 
+        UPDATE Users 
         SET 
             USUARIO = ?, N_CEDULA = ?, CORREO_ELECTRONICO = ?, TELEFONO = ?, PLAN = ?,
             F_INGRESO = ?, F_VENCIMIENTO = ?, ESTADO = ?, F_N = ?, 
@@ -211,7 +211,7 @@ app.put('/api/users/:id', (req, res) => {
 // ==========================================
 // 9. LÓGICA DE CONGELAMIENTO (CORREGIDO Y COMPLETO)
 // ==========================================
-app.put('/api/users/:id/freeze', (req, res) => {
+app.put('/api/Users/:id/freeze', (req, res) => {
     const id = req.params.id;
     const { fechaInicio, fechaFin } = req.body;
 
@@ -221,7 +221,7 @@ app.put('/api/users/:id/freeze', (req, res) => {
     }
 
     // 1. Buscamos la fecha de vencimiento actual del usuario
-    const sqlGet = 'SELECT F_VENCIMIENTO FROM users WHERE id = ?';
+    const sqlGet = 'SELECT F_VENCIMIENTO FROM Users WHERE id = ?';
 
     db.query(sqlGet, [id], (err, results) => {
         if (err || results.length === 0) {
@@ -259,7 +259,7 @@ app.put('/api/users/:id/freeze', (req, res) => {
         // y AMBAS fechas del rango de congelamiento (Inicio y Fin).
         // ---------------------------------------------------------------
         const sqlUpdate = `
-            UPDATE users 
+            UPDATE Users 
             SET F_VENCIMIENTO = ?, 
                 ESTADO = 'CONGELADO', 
                 F_FIN_CONGELAMIENTO = ?, 
@@ -281,7 +281,7 @@ app.put('/api/users/:id/freeze', (req, res) => {
 // ==========================================
 // 9. LÓGICA DE CONGELAMIENTO (CORREGIDO Y COMPLETO)
 // ==========================================
-app.put('/api/users/:id/freeze', (req, res) => {
+app.put('/api/Users/:id/freeze', (req, res) => {
     const id = req.params.id;
     const { fechaInicio, fechaFin } = req.body;
 
@@ -291,7 +291,7 @@ app.put('/api/users/:id/freeze', (req, res) => {
     }
 
     // 1. Buscamos la fecha de vencimiento actual del usuario
-    const sqlGet = 'SELECT F_VENCIMIENTO FROM users WHERE id = ?';
+    const sqlGet = 'SELECT F_VENCIMIENTO FROM Users WHERE id = ?';
 
     db.query(sqlGet, [id], (err, results) => {
         if (err || results.length === 0) {
@@ -329,7 +329,7 @@ app.put('/api/users/:id/freeze', (req, res) => {
         // y AMBAS fechas del rango de congelamiento (Inicio y Fin).
         // ---------------------------------------------------------------
         const sqlUpdate = `
-            UPDATE users 
+            UPDATE Users 
             SET F_VENCIMIENTO = ?, 
                 ESTADO = 'CONGELADO', 
                 F_FIN_CONGELAMIENTO = ?, 
@@ -353,9 +353,9 @@ app.put('/api/users/:id/freeze', (req, res) => {
 // --- AGREGAR ESTO JUNTO A TUS OTRAS RUTAS GET ---
 
 // Nuevo: Obtener lista de Staff (Entrenadores, Fisio, etc.)
-app.get('/api/staff', (req, res) => {
+app.get('/api/Staff', (req, res) => {
     // Solo traemos a los activos
-    const sql = 'SELECT id, name, role FROM staff WHERE is_active = 1 ORDER BY name ASC';
+    const sql = 'SELECT id, name, role FROM Staff WHERE is_active = 1 ORDER BY name ASC';
     db.query(sql, (err, results) => {
         if (err) return res.status(500).json({ error: 'Error db' });
         res.json(results);
@@ -366,11 +366,11 @@ app.get('/api/staff', (req, res) => {
 // 10. Agendar Cita (Fase 5)
 // ==========================================//
 // 10. Agendar Cita (CON VALIDACIÓN DE AFORO 5 PERSONAS)
-app.post('/api/appointments', (req, res) => {
-    const { userId, fecha, hora, staffId } = req.body;
+app.post('/api/Appointments', (req, res) => {
+    const { userId, fecha, hora, StaffId } = req.body;
 
     // Validación básica
-    if (!userId || !fecha || !hora || !staffId) {
+    if (!userId || !fecha || !hora || !StaffId) {
         return res.status(400).json({ success: false, message: 'Faltan datos: Debes seleccionar Entrenador, Fecha y Hora.' });
     }
 
@@ -381,11 +381,11 @@ app.post('/api/appointments', (req, res) => {
     // A. VALIDACIÓN DE AFORO (MÁXIMO 5 PERSONAS POR ENTRENADOR A ESA HORA)
     const countSql = `
         SELECT COUNT(*) as total 
-        FROM appointments 
-        WHERE staff_id = ? AND appointment_date = ? AND start_time = ? AND status = 'confirmed'
+        FROM Appointments 
+        WHERE Staff_id = ? AND appointment_date = ? AND start_time = ? AND status = 'confirmed'
     `;
 
-    db.query(countSql, [staffId, fecha, hora], (err, results) => {
+    db.query(countSql, [StaffId, fecha, hora], (err, results) => {
         if (err) return res.status(500).json({ success: false, message: 'Error verificando cupos.' });
         
         const ocupacion = results[0].total;
@@ -396,8 +396,8 @@ app.post('/api/appointments', (req, res) => {
         }
 
         // B. Validar duplicados del usuario (No puede tener 2 citas a la misma hora)
-        const checkUserSql = 'SELECT * FROM appointments WHERE user_id = ? AND appointment_date = ? AND start_time = ?';
-        db.query(checkUserSql, [userId, fecha, hora], (err, userResults) => {
+        const checkUsersql = 'SELECT * FROM Appointments WHERE user_id = ? AND appointment_date = ? AND start_time = ?';
+        db.query(checkUsersql, [userId, fecha, hora], (err, userResults) => {
             if (err) return res.status(500).json({ success: false, message: 'Error verificando usuario.' });
 
             if (userResults.length > 0) {
@@ -406,11 +406,11 @@ app.post('/api/appointments', (req, res) => {
 
             // C. Insertar la cita
             const insertSql = `
-                INSERT INTO appointments (user_id, staff_id, appointment_date, start_time, end_time, status) 
+                INSERT INTO Appointments (user_id, Staff_id, appointment_date, start_time, end_time, status) 
                 VALUES (?, ?, ?, ?, ADDTIME(?, '01:00:00'), 'confirmed')
             `;
 
-            db.query(insertSql, [userId, staffId, fecha, hora, hora], (err, result) => {
+            db.query(insertSql, [userId, StaffId, fecha, hora, hora], (err, result) => {
                 if (err) return res.status(500).json({ success: false, message: 'Error al agendar.' });
                 res.json({ success: true, message: '✅ Cita agendada correctamente.' });
             });
@@ -427,7 +427,7 @@ cron.schedule('1 0 * * *', () => {
 
     // Busca usuarios congelados cuya fecha de fin ya pasó o es hoy
     const sql = `
-        UPDATE users 
+        UPDATE Users 
         SET ESTADO = 'ACTIVO', F_FIN_CONGELAMIENTO = NULL 
         WHERE ESTADO = 'CONGELADO' AND F_FIN_CONGELAMIENTO <= CURDATE()
     `;
@@ -446,7 +446,7 @@ cron.schedule('1 0 * * *', () => {
 // ==========================================
 // 11. CREAR NUEVO USUARIO (CON VENCIMIENTO)
 // ==========================================
-app.post('/api/users/create', (req, res) => {
+app.post('/api/Users/create', (req, res) => {
     // 1. Recibimos f_vencimiento del frontend
     const { usuario, cedula, telefono, correo, plan, f_ingreso, f_vencimiento, f_nacimiento, sexo, direccion } = req.body;
 
@@ -456,7 +456,7 @@ app.post('/api/users/create', (req, res) => {
     }
 
     // B. Verificar duplicados
-    const checkSql = 'SELECT id FROM users WHERE N_CEDULA = ?';
+    const checkSql = 'SELECT id FROM Users WHERE N_CEDULA = ?';
     db.query(checkSql, [cedula], (err, results) => {
         if (err) return res.status(500).json({ success: false, message: 'Error verificando duplicados.' });
 
@@ -466,7 +466,7 @@ app.post('/api/users/create', (req, res) => {
 
         // C. Insertar (AHORA INCLUIMOS F_VENCIMIENTO)
         const insertSql = `
-            INSERT INTO users (
+            INSERT INTO Users (
                 USUARIO, N_CEDULA, TELEFONO, CORREO_ELECTRONICO, PLAN, 
                 F_INGRESO, F_VENCIMIENTO, F_N, SEXO, DIRECCION_O_BARRIO, ESTADO
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVO')
@@ -496,15 +496,15 @@ app.post('/api/users/create', (req, res) => {
 // ==========================================
 
 // A. Ver todas las reservas (con buscador)
-app.get('/api/appointments/all', (req, res) => {
+app.get('/api/Appointments/all', (req, res) => {
     const query = req.query.q || ''; // Texto del buscador
     
     const sql = `
         SELECT a.id, a.appointment_date, a.start_time, a.status, 
                u.USUARIO as cliente, s.name as entrenador
-        FROM appointments a
-        JOIN users u ON a.user_id = u.id
-        JOIN staff s ON a.staff_id = s.id
+        FROM Appointments a
+        JOIN Users u ON a.user_id = u.id
+        JOIN Staff s ON a.Staff_id = s.id
         WHERE u.USUARIO LIKE ? OR s.name LIKE ?
         ORDER BY a.appointment_date DESC, a.start_time ASC
         LIMIT 50
@@ -522,9 +522,9 @@ app.get('/api/appointments/all', (req, res) => {
 });
 
 // B. Cancelar una reserva
-app.put('/api/appointments/:id/cancel', (req, res) => {
+app.put('/api/Appointments/:id/cancel', (req, res) => {
     const id = req.params.id;
-    const sql = "UPDATE appointments SET status = 'cancelled' WHERE id = ?";
+    const sql = "UPDATE Appointments SET status = 'cancelled' WHERE id = ?";
 
     db.query(sql, [id], (err, result) => {
         if (err) return res.status(500).json({ success: false, message: 'Error al cancelar' });
