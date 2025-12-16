@@ -68,8 +68,9 @@ document.addEventListener('click', (e) => {
     }
 });
 
+
 // ==========================================
-// 3. LÓGICA DE LA AGENDA
+// 3. LÓGICA DE LA AGENDA (CON WHATSAPP)
 // ==========================================
 function loadAgenda() {
     fetch('/api/appointments/today')
@@ -88,15 +89,51 @@ function loadAgenda() {
 
             citas.forEach(cita => {
                 const hora = cita.start_time.substring(0, 5);
+
+                // LÓGICA WHATSAPP
+                let whatsappBtn = '';
+                if (cita.TELEFONO) {
+                    // Limpiamos el número (quitamos espacios, guiones, etc.)
+                    let telefono = cita.TELEFONO.replace(/\D/g, '');
+
+                    // Si no tiene código de país (ej: 57), se lo agregamos (asumiendo Colombia)
+                    if (!telefono.startsWith('57') && telefono.length === 10) {
+                        telefono = '57' + telefono;
+                    }
+
+                    // Mensaje personalizado
+                    const mensaje = `Hola ${cita.cliente}, te saludamos de CardioFit. Queríamos confirmar tu asistencia a la cita programada para hoy a las ${hora}. ¿Podrás asistir?`;
+                    const url = `https://wa.me/${telefono}?text=${encodeURIComponent(mensaje)}`;
+
+                    whatsappBtn = `
+                        <a href="${url}" target="_blank" 
+                           class="mt-3 block w-full bg-green-500 hover:bg-green-600 text-white text-center py-2 rounded-lg font-bold text-sm transition flex items-center justify-center gap-2 shadow-sm">
+                            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372s-1.04 1.016-1.04 2.479 1.065 2.876 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414z"/>
+                            </svg>
+                            Confirmar Asistencia
+                        </a>
+                    `;
+                } else {
+                    whatsappBtn = `
+                        <button disabled class="mt-3 block w-full bg-gray-200 text-gray-400 text-center py-2 rounded-lg font-bold text-sm cursor-not-allowed">
+                            Sin teléfono
+                        </button>
+                    `;
+                }
+
                 const card = document.createElement('div');
-                card.className = 'bg-white p-5 rounded-xl shadow border-l-4 border-blue-500 hover:shadow-md transition';
+                card.className = 'bg-white p-5 rounded-xl shadow border-l-4 border-blue-500 hover:shadow-md transition flex flex-col justify-between';
                 card.innerHTML = `
-                    <div class="flex justify-between items-start mb-2">
-                        <span class="text-2xl font-bold text-blue-600">${hora}</span>
-                        <span class="bg-gray-100 text-gray-600 text-xs px-2 py-1 rounded">Entrenador: ${cita.entrenador}</span>
+                    <div>
+                        <div class="flex justify-between items-start mb-2">
+                            <span class="text-2xl font-bold text-blue-600">${hora}</span>
+                            <span class="bg-gray-100 text-gray-600 text-xs px-2 py-1 rounded">Staff: ${cita.entrenador}</span>
+                        </div>
+                        <h3 class="font-bold text-gray-800 text-lg truncate" title="${cita.cliente}">${cita.cliente}</h3>
+                        <p class="text-sm text-gray-500">Sesión regular</p>
                     </div>
-                    <h3 class="font-bold text-gray-800 text-lg truncate">${cita.cliente}</h3>
-                    <p class="text-sm text-gray-500">Sesión regular</p>
+                    ${whatsappBtn}
                 `;
                 container.appendChild(card);
             });
@@ -147,8 +184,13 @@ function openUserModal(id) {
             document.getElementById('editFVencimiento').value = fVencimiento;
             document.getElementById('editFExamen').value = formatDateForInput(user.F_EXAMEN_LABORATORIO);
             document.getElementById('editFNutricion').value = formatDateForInput(user.F_CITA_NUTRICION);
-            document.getElementById('editFDeportiva').value = formatDateForInput(user.F_CITA_MED_DEPORTIVA);
-
+            // Ahora cargamos el texto tal cual viene de la BD, o vacío si es null
+            const observacion = user.F_CITA_MED_DEPORTIVA || '';
+            document.getElementById('editFDeportiva').value = observacion;
+            // Actualizamos el contador visualmente al abrir el modal
+            if (document.getElementById('charCountDeportiva')) {
+                document.getElementById('charCountDeportiva').innerText = observacion.length;
+            }
             // ---------------------------------------------------------
             // 🔒 LÓGICA DE BLOQUEO DE FECHAS (NUEVO)
             // ---------------------------------------------------------
@@ -536,8 +578,11 @@ function openReservationsModal() {
     loadAllReservations(); // Cargar datos al abrir
 }
 
-// ... (El resto de funciones loadAllReservations y cancelReservation se mantienen igual que en el paso anterior)
 // 1. Función para cargar reservas
+
+// ==========================================
+// FUNCIÓN: CARGAR TODAS LAS RESERVAS (HISTORIAL)
+// ==========================================
 function loadAllReservations(query = '') {
     const tableBody = document.getElementById('reservasTableBody');
     if (!tableBody) return; // Si no existe la tabla, no hacemos nada
@@ -553,38 +598,59 @@ function loadAllReservations(query = '') {
             }
 
             reservas.forEach(reserva => {
-                // Formatear fecha
+                // 1. Formatear fecha (ajuste de zona horaria simple)
                 const fechaObj = new Date(reserva.appointment_date);
-                // Ajuste de zona horaria simple para visualización correcta
-                const fechaStr = fechaObj.toLocaleDateString('es-ES', { timeZone: 'UTC' });
+                const fechaStr = new Date(fechaObj.getUTCFullYear(), fechaObj.getUTCMonth(), fechaObj.getUTCDate()).toLocaleDateString('es-ES');
                 const horaStr = reserva.start_time.substring(0, 5);
 
-                // Definir colores según estado
+                // 2. Definir Estado y Acciones
                 let estadoBadge = '';
-                let btnCancel = '';
+                let acciones = '<div class="flex items-center justify-center gap-4">'; // Contenedor Flex para alinear íconos
 
-                if (reserva.status === 'confirmed') {
-                    estadoBadge = `<span class="bg-green-100 text-green-700 px-2 py-1 rounded-full text-xs font-bold">Confirmada</span>`;
-                    // Botón de cancelar solo si está confirmada
-                    btnCancel = `
-                        <button onclick="cancelReservation(${reserva.id})" 
-                            class="bg-red-100 text-red-600 hover:bg-red-200 px-3 py-1 rounded text-xs font-bold transition">
-                            Cancelar
-                        </button>`;
-                } else {
-                    estadoBadge = `<span class="bg-gray-100 text-gray-500 px-2 py-1 rounded-full text-xs font-bold">Cancelada</span>`;
-                    btnCancel = `<span class="text-gray-300 text-xs">-</span>`;
+                // --- BOTÓN WHATSAPP (SOLO ÍCONO) ---
+                if (reserva.TELEFONO) {
+                    let tel = reserva.TELEFONO.replace(/\D/g, ''); // Limpiar número
+                    if (!tel.startsWith('57') && tel.length === 10) tel = '57' + tel; // Agregar código país si falta
+
+                    const mensaje = `Hola ${reserva.cliente}, desde CardioFit confirmamos tu cita para el día ${fechaStr} a las ${horaStr}.`;
+                    const url = `https://wa.me/${tel}?text=${encodeURIComponent(mensaje)}`;
+
+                    acciones += `
+                        <a href="${url}" target="_blank" title="Confirmar por WhatsApp" 
+                           class="text-green-500 hover:text-green-600 transition hover:scale-110">
+                            <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372s-1.04 1.016-1.04 2.479 1.065 2.876 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414z"/>
+                            </svg>
+                        </a>
+                    `;
                 }
 
+                // --- BOTÓN CANCELAR (SOLO SI ESTÁ CONFIRMADA) ---
+                if (reserva.status === 'confirmed') {
+                    estadoBadge = `<span class="bg-green-100 text-green-700 px-2 py-1 rounded-full text-xs font-bold border border-green-200">Activa</span>`;
+                    acciones += `
+                        <button onclick="cancelReservation(${reserva.id})" title="Cancelar Cita"
+                            class="text-red-500 hover:text-red-700 transition hover:scale-110">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                            </svg>
+                        </button>`;
+                } else {
+                    estadoBadge = `<span class="bg-gray-100 text-gray-500 px-2 py-1 rounded-full text-xs font-bold border border-gray-200">Cancelada</span>`;
+                }
+
+                acciones += '</div>'; // Cerrar contenedor flex
+
+                // 3. Crear Fila
                 const row = document.createElement('tr');
-                row.className = 'hover:bg-gray-50 transition';
+                row.className = 'hover:bg-purple-50 transition border-b border-gray-100 group';
                 row.innerHTML = `
-                    <td class="p-4 font-medium text-gray-800">${fechaStr}</td>
-                    <td class="p-4">${horaStr}</td>
-                    <td class="p-4 font-bold text-blue-900">${reserva.cliente}</td>
-                    <td class="p-4 text-gray-500">${reserva.entrenador}</td>
+                    <td class="p-4 font-medium text-gray-700">${fechaStr}</td>
+                    <td class="p-4 text-gray-600">${horaStr}</td>
+                    <td class="p-4 font-bold text-blue-900 group-hover:text-purple-700 transition">${reserva.cliente}</td>
+                    <td class="p-4 text-gray-500 text-sm">${reserva.entrenador}</td>
                     <td class="p-4">${estadoBadge}</td>
-                    <td class="p-4 text-center">${btnCancel}</td>
+                    <td class="p-4 text-center">${acciones}</td>
                 `;
                 tableBody.appendChild(row);
             });
@@ -632,3 +698,23 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 });
+
+// ------------------------------------------------------
+// 4. CONTADOR DE CARACTERES PARA MED. DEPORTIVA (NUEVO)
+// ------------------------------------------------------
+const textDeportiva = document.getElementById('editFDeportiva');
+const countDeportiva = document.getElementById('charCountDeportiva');
+
+if (textDeportiva && countDeportiva) {
+    textDeportiva.addEventListener('input', function () {
+        const currentLength = this.value.length;
+        countDeportiva.innerText = currentLength;
+
+        // Cambiar color a rojo si llega al límite
+        if (currentLength >= 250) {
+            countDeportiva.classList.add('text-red-600');
+        } else {
+            countDeportiva.classList.remove('text-red-600');
+        }
+    });
+}

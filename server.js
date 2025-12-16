@@ -119,14 +119,13 @@ app.get('/api/Users/search', (req, res) => {
 });
 
 // 6. Agenda del Día (Citas de HOY)
-app.get('/api/Appointments/today', (req, res) => {
-    // Obtenemos citas donde la fecha sea CURDATE() (la fecha de hoy del servidor MySQL)
-    // Hacemos JOIN para traer el nombre del usuario y del entrenador (Staff)
+app.get('/api/appointments/today', (req, res) => {
+    // CAMBIO: Agregamos u.TELEFONO a la consulta
     const sql = `
-        SELECT a.id, a.start_time, a.end_time, u.USUARIO as cliente, s.name as entrenador
+        SELECT a.id, a.start_time, a.end_time, u.USUARIO as cliente, u.TELEFONO, s.name as entrenador
         FROM Appointments a
         JOIN Users u ON a.user_id = u.id
-        JOIN Staff s ON a.Staff_id = s.id
+        JOIN Staff s ON a.staff_id = s.id
         WHERE a.appointment_date = CURDATE()
         ORDER BY a.start_time ASC
     `;
@@ -139,7 +138,6 @@ app.get('/api/Appointments/today', (req, res) => {
         res.json(results);
     });
 });
-
 // --- NUEVAS RUTAS FASE 3 (EDICIÓN) ---
 
 // 7. Obtener detalles de un usuario específico
@@ -350,10 +348,8 @@ app.put('/api/Users/:id/freeze', (req, res) => {
 });
 
 
-// --- AGREGAR ESTO JUNTO A TUS OTRAS RUTAS GET ---
-
 // Nuevo: Obtener lista de Staff (Entrenadores, Fisio, etc.)
-app.get('/api/Staff', (req, res) => {
+app.get('/api/staff', (req, res) => {
     // Solo traemos a los activos
     const sql = 'SELECT id, name, role FROM Staff WHERE is_active = 1 ORDER BY name ASC';
     db.query(sql, (err, results) => {
@@ -361,16 +357,15 @@ app.get('/api/Staff', (req, res) => {
         res.json(results);
     });
 });
-
 // ==========================================
 // 10. Agendar Cita (Fase 5)
 // ==========================================//
 // 10. Agendar Cita (CON VALIDACIÓN DE AFORO 5 PERSONAS)
 app.post('/api/Appointments', (req, res) => {
-    const { userId, fecha, hora, StaffId } = req.body;
+    const { userId, fecha, hora, staffId } = req.body;
 
     // Validación básica
-    if (!userId || !fecha || !hora || !StaffId) {
+    if (!userId || !fecha || !hora || !staffId) {
         return res.status(400).json({ success: false, message: 'Faltan datos: Debes seleccionar Entrenador, Fecha y Hora.' });
     }
 
@@ -382,10 +377,10 @@ app.post('/api/Appointments', (req, res) => {
     const countSql = `
         SELECT COUNT(*) as total 
         FROM Appointments 
-        WHERE Staff_id = ? AND appointment_date = ? AND start_time = ? AND status = 'confirmed'
+        WHERE staff_id = ? AND appointment_date = ? AND start_time = ? AND status = 'confirmed'
     `;
 
-    db.query(countSql, [StaffId, fecha, hora], (err, results) => {
+    db.query(countSql, [staffId, fecha, hora], (err, results) => {
         if (err) return res.status(500).json({ success: false, message: 'Error verificando cupos.' });
         
         const ocupacion = results[0].total;
@@ -396,8 +391,8 @@ app.post('/api/Appointments', (req, res) => {
         }
 
         // B. Validar duplicados del usuario (No puede tener 2 citas a la misma hora)
-        const checkUsersql = 'SELECT * FROM Appointments WHERE user_id = ? AND appointment_date = ? AND start_time = ?';
-        db.query(checkUsersql, [userId, fecha, hora], (err, userResults) => {
+        const checkUserSql = 'SELECT * FROM Appointments WHERE user_id = ? AND appointment_date = ? AND start_time = ?';
+        db.query(checkUserSql, [userId, fecha, hora], (err, userResults) => {
             if (err) return res.status(500).json({ success: false, message: 'Error verificando usuario.' });
 
             if (userResults.length > 0) {
@@ -406,11 +401,11 @@ app.post('/api/Appointments', (req, res) => {
 
             // C. Insertar la cita
             const insertSql = `
-                INSERT INTO Appointments (user_id, Staff_id, appointment_date, start_time, end_time, status) 
+                INSERT INTO Appointments (user_id, staff_id, appointment_date, start_time, end_time, status) 
                 VALUES (?, ?, ?, ?, ADDTIME(?, '01:00:00'), 'confirmed')
             `;
 
-            db.query(insertSql, [userId, StaffId, fecha, hora, hora], (err, result) => {
+            db.query(insertSql, [userId, staffId, fecha, hora, hora], (err, result) => {
                 if (err) return res.status(500).json({ success: false, message: 'Error al agendar.' });
                 res.json({ success: true, message: '✅ Cita agendada correctamente.' });
             });
@@ -501,7 +496,7 @@ app.get('/api/Appointments/all', (req, res) => {
     
     const sql = `
         SELECT a.id, a.appointment_date, a.start_time, a.status, 
-               u.USUARIO as cliente, s.name as entrenador
+               u.USUARIO as cliente, u.TELEFONO, s.name as entrenador
         FROM Appointments a
         JOIN Users u ON a.user_id = u.id
         JOIN Staff s ON a.Staff_id = s.id

@@ -252,8 +252,14 @@
                         <input type="date" id="editFNutricion" class="input-form">
                     </div>
                     <div>
-                        <label class="label-form">F. Med. Deportiva</label>
-                        <input type="date" id="editFDeportiva" class="input-form">
+                        <label class="label-form">Obs. Med. Deportiva</label>
+                        <textarea id="editFDeportiva" maxlength="250" rows="3" 
+                            class="input-form resize-none h-24 text-sm" 
+                            placeholder="Escribe las observaciones aquí..."></textarea>
+                        
+                        <p class="text-xs text-right text-gray-500 mt-1 font-bold">
+                            <span id="charCountDeportiva">0</span>/250 caracteres
+                        </p>
                     </div>
                 </div>
                 <div class="mt-6 border-t pt-4">
