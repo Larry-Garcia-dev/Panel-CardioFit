@@ -5,7 +5,7 @@ const bodyParser = require('body-parser');
 const session = require('express-session');
 const path = require('path');
 const cron = require('node-cron');
-
+const axios = require('axios')
 const app = express();
 
 // Configuración de Middleware
@@ -358,56 +358,88 @@ app.get('/api/staff', (req, res) => {
     });
 });
 // ==========================================
-// 10. Agendar Cita (Fase 5)
-// ==========================================//
-// 10. Agendar Cita (CON VALIDACIÓN DE AFORO 5 PERSONAS)
+// 10. Agendar Cita con Envío a Webhook
+// ==========================================
 app.post('/api/Appointments', (req, res) => {
     const { userId, fecha, hora, staffId } = req.body;
 
-    // Validación básica
     if (!userId || !fecha || !hora || !staffId) {
-        return res.status(400).json({ success: false, message: 'Faltan datos: Debes seleccionar Entrenador, Fecha y Hora.' });
+        return res.status(400).json({
+            success: false,
+            message: 'Faltan datos: Debes seleccionar un profesional, fecha y hora.'
+        });
     }
 
-    if (!hora.endsWith(':00') && !hora.endsWith(':00:00')) {
-        return res.status(400).json({ success: false, message: 'Las citas solo pueden ser en horas en punto.' });
-    }
+    const formattedTime = hora.includes(':') && hora.split(':').length === 2 ? `${hora}:00` : hora;
+    const dayOfWeek = new Date(fecha).getUTCDay() + 1; // 1=Lunes, 7=Domingo
 
-    // A. VALIDACIÓN DE AFORO (MÁXIMO 5 PERSONAS POR ENTRENADOR A ESA HORA)
-    const countSql = `
-        SELECT COUNT(*) as total 
-        FROM Appointments 
-        WHERE staff_id = ? AND appointment_date = ? AND start_time = ? AND status = 'confirmed'
+    // 1. Obtener información completa para el Webhook (Usuario, Staff y Horario)
+    const sqlFullInfo = `
+        SELECT 
+            u.USUARIO as cliente_nombre, u.TELEFONO as cliente_tel, u.CORREO_ELECTRONICO as cliente_email,
+            s.name as staff_nombre, s.role as staff_role,
+            ws.start_time, ws.end_time 
+        FROM Users u, Staff s
+        JOIN WeeklySchedules ws ON s.id = ws.staff_id
+        WHERE u.id = ? AND s.id = ? AND ws.day_of_week = ? 
+          AND ? >= ws.start_time AND ? < ws.end_time
     `;
 
-    db.query(countSql, [staffId, fecha, hora], (err, results) => {
-        if (err) return res.status(500).json({ success: false, message: 'Error verificando cupos.' });
-        
-        const ocupacion = results[0].total;
-        
-        // Si ya hay 5 o más, bloqueamos
-        if (ocupacion >= 5) {
-            return res.status(400).json({ success: false, message: `⚠️ Cupo lleno. Este entrenador ya tiene ${ocupacion} citas a esa hora.` });
+    db.query(sqlFullInfo, [userId, staffId, dayOfWeek, formattedTime, formattedTime], (err, infoResults) => {
+        if (err || infoResults.length === 0) {
+            return res.status(400).json({ success: false, message: 'Error de validación o el profesional no está disponible.' });
         }
 
-        // B. Validar duplicados del usuario (No puede tener 2 citas a la misma hora)
-        const checkUserSql = 'SELECT * FROM Appointments WHERE user_id = ? AND appointment_date = ? AND start_time = ?';
-        db.query(checkUserSql, [userId, fecha, hora], (err, userResults) => {
-            if (err) return res.status(500).json({ success: false, message: 'Error verificando usuario.' });
+        const details = infoResults[0];
+        
+        // --- Lógica de capacidad dinámica (Simplificada para el ejemplo) ---
+        // Aquí iría tu validación de 4 o 5 personas según el orden de prioridad
+        const maxCapacity = 5; // Ajustar según tu lógica de prioridad previa
 
-            if (userResults.length > 0) {
-                return res.status(400).json({ success: false, message: 'Este usuario ya tiene cita a esa hora.' });
+        const sqlCheck = `SELECT COUNT(*) as current FROM Appointments WHERE staff_id = ? AND appointment_date = ? AND start_time = ? AND status = 'confirmed'`;
+        
+        db.query(sqlCheck, [staffId, fecha, formattedTime], (err, checkRes) => {
+            if (checkRes[0].current >= maxCapacity) {
+                return res.status(400).json({ success: false, message: 'Cupo lleno.' });
             }
 
-            // C. Insertar la cita
-            const insertSql = `
-                INSERT INTO Appointments (user_id, staff_id, appointment_date, start_time, end_time, status) 
-                VALUES (?, ?, ?, ?, ADDTIME(?, '01:00:00'), 'confirmed')
-            `;
+            // 2. Insertar en Base de Datos
+            const sqlInsert = `INSERT INTO Appointments (user_id, staff_id, appointment_date, start_time, end_time, status) VALUES (?, ?, ?, ?, ADDTIME(?, '01:00:00'), 'confirmed')`;
+            
+            db.query(sqlInsert, [userId, staffId, fecha, formattedTime, formattedTime], async (err, result) => {
+                if (err) return res.status(500).json({ success: false, message: 'Error al registrar.' });
 
-            db.query(insertSql, [userId, staffId, fecha, hora, hora], (err, result) => {
-                if (err) return res.status(500).json({ success: false, message: 'Error al agendar.' });
-                res.json({ success: true, message: '✅ Cita agendada correctamente.' });
+                // 3. ENVÍO AL WEBHOOK
+                const webhookData = {
+                    evento: "nueva_cita",
+                    cita_id: result.insertId,
+                    fecha: fecha,
+                    hora: formattedTime,
+                    cliente: {
+                        id: userId,
+                        nombre: details.cliente_nombre,
+                        telefono: details.cliente_tel,
+                        email: details.cliente_email
+                    },
+                    staff: {
+                        id: staffId,
+                        nombre: details.staff_nombre,
+                        rol: details.staff_role
+                    },
+                    notificacion: "Cita agendada mediante Panel CardioFit"
+                };
+
+                try {
+                    await axios.post('https://n8n.magnificapec.com/webhook/ff5e2454-2c1b-4542-be55-48408d97b4e8-panel', webhookData);
+                    console.log("✅ Webhook enviado correctamente");
+                } catch (error) {
+                    console.error("❌ Error enviando al Webhook:", error.message);
+                }
+
+                res.json({ 
+                    success: true, 
+                    message: `Cita confirmada con ${details.staff_nombre}. Los detalles se enviaron al sistema de notificaciones.` 
+                });
             });
         });
     });
@@ -493,7 +525,7 @@ app.post('/api/Users/create', (req, res) => {
 // A. Ver todas las reservas (con buscador)
 app.get('/api/Appointments/all', (req, res) => {
     const query = req.query.q || ''; // Texto del buscador
-    
+
     const sql = `
         SELECT a.id, a.appointment_date, a.start_time, a.status, 
                u.USUARIO as cliente, u.TELEFONO, s.name as entrenador

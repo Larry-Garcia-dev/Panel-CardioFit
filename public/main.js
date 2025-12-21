@@ -462,12 +462,12 @@ document.addEventListener('DOMContentLoaded', () => {
 // C. ACTUALIZAR LA FUNCIÓN DE AGENDAR (REEMPLAZAR LA EXISTENTE)
 function bookAppointment() {
     const userId = document.getElementById('editUserId').value;
-    const staffId = document.getElementById('apptStaff').value;
+    const staffId = document.getElementById('apptStaff').value; // Captura el ID del staff seleccionado
     const date = document.getElementById('apptDate').value;
     const time = document.getElementById('apptTime').value;
 
     if (!date || !time || !staffId) {
-        Swal.fire('Campos incompletos', 'Por favor completa Entrenador, Fecha y Hora.', 'warning');
+        Swal.fire('Campos incompletos', 'Por favor selecciona un profesional, fecha y hora.', 'warning');
         return;
     }
 
@@ -477,31 +477,35 @@ function bookAppointment() {
         return;
     }
 
-    const data = { userId, staffId, fecha: date, hora: time };
+    const data = { 
+        userId, 
+        staffId, // Enviamos el ID específico al backend
+        fecha: date, 
+        hora: time 
+    };
 
     fetch('/api/appointments', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data)
     })
-        .then(res => res.json())
-        .then(response => {
-            if (response.success) {
-                Swal.fire({
-                    title: '¡Cita Agendada!',
-                    text: response.message,
-                    icon: 'success',
-                    confirmButtonColor: '#2563eb'
-                });
-                // Limpiar campos
-                document.getElementById('apptDate').value = '';
-                document.getElementById('apptTime').value = '';
-                document.getElementById('apptStaff').value = '';
-                loadAgenda();
-            } else {
-                Swal.fire('No se pudo agendar', response.message, 'error');
-            }
-        });
+    .then(res => res.json())
+    .then(response => {
+        if (response.success) {
+            Swal.fire({
+                title: '¡Cita Agendada!',
+                text: response.message,
+                icon: 'success',
+                confirmButtonColor: '#2563eb'
+            });
+            document.getElementById('apptDate').value = '';
+            document.getElementById('apptTime').value = '';
+            document.getElementById('apptStaff').value = '';
+            loadAgenda();
+        } else {
+            Swal.fire('No se pudo agendar', response.message, 'error');
+        }
+    });
 }
 
 // ==========================================
