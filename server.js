@@ -7,6 +7,7 @@ const path = require('path');
 const cron = require('node-cron');
 const axios = require('axios')
 const app = express();
+const staffRoutes = require('./routes/staff');
 
 // Configuración de Middleware
 app.use(bodyParser.json());
@@ -17,6 +18,7 @@ app.use(session({
     resave: false,
     saveUninitialized: true
 }));
+app.use('/api/staff-management', staffRoutes);
 
 // Conexión a Base de Datos
 const db = mysql.createConnection({
@@ -37,41 +39,54 @@ db.connect(err => {
 // --- RUTAS DE API (BACKEND) ---
 
 // 1. Registro de Administrador
-app.post('/api/register', (req, res) => {
-    const { nombre, email, password, secretCode } = req.body;
+// 2. Login Mejorado (Admin o Staff)
+app.post('/api/login', (req, res) => {
+    const { email, password } = req.body;
 
-    // Verificar código maestro del programador
-    if (secretCode !== process.env.ADMIN_SECRET_KEY) {
-        return res.status(403).json({ success: false, message: 'Código de seguridad incorrecto.' });
-    }
+    // 1. Intentar buscar en ADMINS
+    const sqlAdmin = 'SELECT * FROM admins WHERE email = ? AND password = ?';
+    db.query(sqlAdmin, [email, password], (err, adminResults) => {
+        if (err) throw err;
 
-    // Insertar Admin (Nota: En producción, usa bcrypt para hashear password)
-    const sql = 'INSERT INTO admins (nombre, email, password) VALUES (?, ?, ?)';
-    db.query(sql, [nombre, email, password], (err, result) => {
-        if (err) {
-            console.error(err);
-            return res.status(500).json({ success: false, message: 'Error al registrar. El correo podría estar duplicado.' });
+        if (adminResults.length > 0) {
+            req.session.loggedin = true;
+            req.session.username = adminResults[0].nombre;
+            req.session.role = 'admin'; // Importante para permisos
+            req.session.userId = adminResults[0].id;
+            return res.json({ success: true, role: 'admin', redirect: '/index.html' });
         }
-        res.json({ success: true, message: 'Administrador registrado con éxito' });
+
+        // 2. Si no es admin, intentar buscar en STAFF
+        const sqlStaff = 'SELECT * FROM Staff WHERE email = ? AND password = ? AND is_active = 1';
+        db.query(sqlStaff, [email, password], (err, staffResults) => {
+            if (err) throw err;
+
+            if (staffResults.length > 0) {
+                req.session.loggedin = true;
+                req.session.username = staffResults[0].name;
+                req.session.role = 'staff';
+                req.session.userId = staffResults[0].id; // ID del staff para filtrar su agenda
+                return res.json({ success: true, role: 'staff', redirect: '/staff-agenda.html' });
+            }
+
+            // 3. Falló todo
+            res.status(401).json({ success: false, message: 'Credenciales incorrectas o cuenta inactiva' });
+        });
     });
 });
 
-// 2. Login
-app.post('/api/login', (req, res) => {
-    const { email, password } = req.body;
-    const sql = 'SELECT * FROM admins WHERE email = ? AND password = ?';
-
-    db.query(sql, [email, password], (err, results) => {
-        if (err) throw err;
-
-        if (results.length > 0) {
-            req.session.loggedin = true;
-            req.session.username = results[0].nombre;
-            res.json({ success: true });
-        } else {
-            res.status(401).json({ success: false, message: 'Credenciales incorrectas' });
-        }
-    });
+// Modificar check-session para devolver el rol y el ID
+app.get('/api/check-session', (req, res) => {
+    if (req.session.loggedin) {
+        res.json({ 
+            loggedin: true, 
+            user: req.session.username, 
+            role: req.session.role,
+            id: req.session.userId 
+        });
+    } else {
+        res.json({ loggedin: false });
+    }
 });
 
 // 3. Verificar Sesión (Para proteger el dashboard)

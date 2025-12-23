@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Gestión de Staff - CardioFit</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+</head>
+<body class="bg-gray-100 font-sans h-screen flex flex-col">
+
+    <nav class="bg-gray-900 text-white p-4 flex justify-between items-center shadow-lg">
+        <h1 class="text-xl font-bold">Gestión de Staff</h1>
+        <a href="/index.html" class="bg-blue-600 px-4 py-1 rounded font-bold">Volver al Dashboard</a>
+    </nav>
+
+    <div class="container mx-auto p-6">
+        
+        <div class="bg-white p-6 rounded-xl shadow mb-8">
+            <h2 class="text-lg font-bold mb-4 text-blue-900">Registrar Nuevo Colaborador</h2>
+            <form id="staffForm" class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <input type="text" id="sName" placeholder="Nombre Completo" class="border p-2 rounded" required>
+                <input type="email" id="sEmail" placeholder="Correo (Login)" class="border p-2 rounded" required>
+                <input type="password" id="sPass" placeholder="Contraseña" class="border p-2 rounded" required>
+                
+                <select id="sRole" class="border p-2 rounded">
+                    <option value="Entrenador">Entrenador</option>
+                    <option value="Fisioterapia">Fisioterapia</option>
+                    <option value="Spa">Spa</option>
+                    <option value="Admin">Admin (Rol Staff)</option>
+                </select>
+                <input type="number" id="sPriority" placeholder="Orden Prioridad (1-10)" class="border p-2 rounded" value="10">
+                
+                <button type="submit" class="bg-green-600 text-white font-bold rounded hover:bg-green-700">Crear Staff</button>
+            </form>
+        </div>
+
+        <div class="bg-white rounded-xl shadow overflow-hidden">
+            <table class="w-full text-left">
+                <thead class="bg-gray-200 text-gray-700 uppercase font-bold text-sm">
+                    <tr>
+                        <th class="p-4">Nombre</th>
+                        <th class="p-4">Rol</th>
+                        <th class="p-4">Email</th>
+                        <th class="p-4">Estado</th>
+                        <th class="p-4">Acción</th>
+                    </tr>
+                </thead>
+                <tbody id="staffTableBody">
+                    </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        // Cargar Staff
+        function loadStaff() {
+            fetch('/api/staff-management/all')
+            .then(res => res.json())
+            .then(data => {
+                const tbody = document.getElementById('staffTableBody');
+                tbody.innerHTML = '';
+                data.forEach(s => {
+                    const activeClass = s.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800';
+                    const statusText = s.is_active ? 'Activo' : 'Bloqueado';
+                    const btnText = s.is_active ? 'Bloquear' : 'Activar';
+                    const btnColor = s.is_active ? 'bg-red-500 hover:bg-red-600' : 'bg-green-500 hover:bg-green-600';
+                    
+                    tbody.innerHTML += `
+                        <tr class="border-b hover:bg-gray-50">
+                            <td class="p-4 font-bold">${s.name}</td>
+                            <td class="p-4">${s.role}</td>
+                            <td class="p-4 text-sm text-gray-500">${s.email || 'Sin acceso'}</td>
+                            <td class="p-4"><span class="px-2 py-1 rounded text-xs font-bold ${activeClass}">${statusText}</span></td>
+                            <td class="p-4 flex gap-2">
+                                <button onclick="toggleStatus(${s.id}, ${s.is_active}, '${s.name}', '${s.email}', '${s.role}')" 
+                                    class="${btnColor} text-white px-3 py-1 rounded text-xs font-bold transition">
+                                    ${btnText}
+                                </button>
+                                <button onclick="changePass(${s.id}, '${s.name}', '${s.email}', '${s.role}', ${s.is_active})" 
+                                    class="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-xs font-bold">
+                                    Editar / Clave
+                                </button>
+                            </td>
+                        </tr>
+                    `;
+                });
+            });
+        }
+
+        // Crear Staff
+        document.getElementById('staffForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const data = {
+                name: document.getElementById('sName').value,
+                email: document.getElementById('sEmail').value,
+                password: document.getElementById('sPass').value,
+                role: document.getElementById('sRole').value,
+                priority_order: document.getElementById('sPriority').value
+            };
+
+            fetch('/api/staff-management/create', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(data)
+            })
+            .then(res => res.json())
+            .then(res => {
+                if(res.success) {
+                    Swal.fire('Creado', res.message, 'success');
+                    loadStaff();
+                    document.getElementById('staffForm').reset();
+                } else {
+                    Swal.fire('Error', res.message, 'error');
+                }
+            });
+        });
+
+        // Bloquear / Activar
+        window.toggleStatus = (id, currentStatus, name, email, role) => {
+            const newStatus = currentStatus ? 0 : 1;
+            updateStaff(id, name, email, role, newStatus, null);
+        };
+
+        // Cambiar Contraseña / Editar
+        window.changePass = async (id, name, email, role, status) => {
+            const { value: formValues } = await Swal.fire({
+                title: 'Editar ' + name,
+                html:
+                    `<input id="swal-email" class="swal2-input" placeholder="Email" value="${email}">` +
+                    `<input id="swal-pass" class="swal2-input" placeholder="Nueva Contraseña (Dejar vacío para no cambiar)">`,
+                focusConfirm: false,
+                showCancelButton: true,
+                preConfirm: () => {
+                    return [
+                        document.getElementById('swal-email').value,
+                        document.getElementById('swal-pass').value
+                    ]
+                }
+            });
+
+            if (formValues) {
+                updateStaff(id, name, formValues[0], role, status, formValues[1]);
+            }
+        };
+
+        function updateStaff(id, name, email, role, is_active, password) {
+            fetch(`/api/staff-management/${id}`, {
+                method: 'PUT',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ name, email, role, is_active, password })
+            })
+            .then(res => res.json())
+            .then(res => {
+                if(res.success) {
+                    Swal.fire('Actualizado', 'Datos guardados', 'success');
+                    loadStaff();
+                } else {
+                    Swal.fire('Error', res.message, 'error');
+                }
+            });
+        }
+
+        loadStaff();
+    </script>
+</body>
+</html>
