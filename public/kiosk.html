@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kiosco CardioFit</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@300;500;700&display=swap" rel="stylesheet">
+    
+    <style>
+        /* --- COLORES Y FUENTES --- */
+        :root {
+            --cyan: #00F0FF;
+            --white: #FFFFFF;
+            --black: #000000;
+            --overlay: rgba(0, 27, 43, 0.85); /* Un poco más oscuro para el formulario */
+        }
+
+        body {
+            font-family: 'Rajdhani', sans-serif;
+            color: var(--white);
+            overflow: hidden;
+            background: black;
+        }
+
+        .font-cyber { font-family: 'Orbitron', sans-serif; }
+
+        /* --- VIDEO DE FONDO --- */
+        #bgVideo {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            object-fit: cover;
+            z-index: -10;
+        }
+
+        .video-overlay {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: var(--overlay);
+            z-index: -5;
+        }
+
+        /* --- BOTONES PRINCIPALES --- */
+        .btn-main {
+            background: rgba(0, 0, 0, 0.6);
+            border: 2px solid var(--cyan);
+            color: var(--cyan);
+            font-family: 'Orbitron', sans-serif;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            padding: 2rem 4rem;
+            font-size: 1.5rem;
+            font-weight: bold;
+            transition: all 0.3s ease;
+            box-shadow: 0 0 15px var(--cyan);
+            backdrop-filter: blur(5px);
+            width: 100%;
+            max-width: 400px;
+            text-align: center;
+        }
+
+        .btn-main:hover {
+            background: var(--cyan);
+            color: var(--black);
+            box-shadow: 0 0 50px var(--cyan);
+            transform: scale(1.05);
+        }
+
+        /* --- ESTILOS DE CITAS --- */
+        .card-future {
+            border: 1px solid var(--cyan);
+            border-left: 8px solid var(--cyan);
+            background: rgba(0, 27, 43, 0.85);
+            box-shadow: 0 0 15px rgba(0, 240, 255, 0.2);
+        }
+
+        .card-past {
+            border: 1px solid #555;
+            border-left: 8px solid #555;
+            background: rgba(20, 20, 20, 0.7);
+            color: #888;
+            filter: grayscale(100%);
+            opacity: 0.6;
+        }
+        
+        .card-past h3 { color: #aaa; }
+        .card-past .time-display { color: #888; text-shadow: none; }
+
+        /* --- ESTILOS FORMULARIO PQR --- */
+        .input-cyber {
+            background: rgba(0,0,0,0.5);
+            border: 1px solid #334155;
+            border-bottom: 2px solid var(--cyan);
+            color: white;
+            padding: 1rem;
+            width: 100%;
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 1.2rem;
+            outline: none;
+            transition: all 0.3s;
+        }
+        .input-cyber:focus {
+            background: rgba(0, 240, 255, 0.1);
+            box-shadow: 0 0 15px rgba(0, 240, 255, 0.3);
+        }
+        
+        .label-desc {
+            font-size: 0.8rem;
+            color: #94a3b8;
+            margin-top: 0.2rem;
+            display: block;
+        }
+        /* Corrección para que las opciones del select sean legibles */
+option {
+    background-color: var(--black);
+    color: var(--white);
+}
+
+        /* Scrollbar invisible */
+        ::-webkit-scrollbar { width: 0px; background: transparent; }
+
+        .fade-in { animation: fadeIn 0.5s ease-in; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+
+    </style>
+</head>
+<body class="h-screen w-screen flex flex-col items-center justify-center">
+
+    <video id="bgVideo" autoplay muted loop playsinline>
+        <source src="https://video.wixstatic.com/video/1aea54_bd88118ad12d42b4aec1232b3fffce55/1080p/mp4/file.mp4" type="video/mp4">
+    </video>
+    <div class="video-overlay"></div>
+
+    <div id="startScreen" class="absolute inset-0 z-20 flex flex-col items-center justify-center gap-10 p-4 w-full h-full transition-opacity duration-500">
+        <button onclick="openSchedule()" class="btn-main">VERIFICAR RESERVA</button>
+        <button onclick="openPQR()" class="btn-main border-white text-white hover:bg-white hover:text-black hover:shadow-white">PQR</button>
+    </div>
+
+    <div id="resultsScreen" class="hidden absolute inset-0 z-30 flex flex-col bg-black/80 backdrop-blur-xl">
+        <div class="flex justify-between items-center p-6 border-b border-cyan-500/50 bg-black/80 z-40 shadow-lg">
+            <h2 class="font-cyber text-3xl text-white">AGENDA <span style="color: var(--cyan);">DIARIA</span></h2>
+            <button onclick="closeScreen()" class="border border-white text-white px-6 py-2 font-bold hover:bg-white hover:text-black transition uppercase font-cyber text-sm">VOLVER</button>
+        </div>
+        <div id="scrollContainer" class="flex-1 overflow-y-auto p-8 relative scroll-smooth">
+            <div id="appointmentsList" class="max-w-4xl mx-auto space-y-6 pb-20"></div>
+        </div>
+        <div class="absolute bottom-6 right-6 text-right z-40 pointer-events-none">
+            <p id="systemTime" class="text-4xl font-cyber text-white drop-shadow-lg">--:--</p>
+        </div>
+    </div>
+
+    <div id="pqrScreen" class="hidden absolute inset-0 z-30 flex flex-col bg-black/90 backdrop-blur-xl items-center justify-center p-4">
+        
+        <div class="w-full max-w-2xl bg-black/60 border border-cyan-500 p-8 rounded-xl shadow-[0_0_30px_rgba(0,240,255,0.15)] relative">
+            
+            <button onclick="closeScreen()" class="absolute top-4 right-4 text-gray-400 hover:text-white text-2xl font-bold">&times;</button>
+
+            <h2 class="font-cyber text-4xl text-white mb-2 text-center">BUZÓN <span style="color: var(--cyan);">PQR</span></h2>
+            <p class="text-gray-400 text-center mb-8 font-light">Tu opinión nos ayuda a mejorar.</p>
+
+            <form id="pqrForm" onsubmit="sendPQR(event)" class="space-y-6">
+                
+                <div>
+                    <input type="text" id="pqrNombre" class="input-cyber" placeholder="Nombre Completo" required>
+                    <span class="label-desc">¿Cómo te llamas? Para dirigirnos a ti correctamente.</span>
+                </div>
+
+                <div>
+                    <input type="text" id="pqrContacto" class="input-cyber" placeholder="Celular o Email" required>
+                    <span class="label-desc">Un medio donde podamos darte respuesta.</span>
+                </div>
+
+                <div>
+                    <select id="pqrTipo" class="input-cyber bg-black appearance-none cursor-pointer" required>
+                        <option value="" disabled selected>Selecciona el tipo de solicitud...</option>
+                        <option value="Sugerencia">💡 Sugerencia (Mejora)</option>
+                        <option value="Queja">⚠️ Queja (Inconformidad)</option>
+                        <option value="Reclamo">🛑 Reclamo (Derecho)</option>
+                        <option value="Felicitacion">⭐ Felicitación</option>
+                    </select>
+                    <span class="label-desc">Clasifica tu mensaje para el área encargada.</span>
+                </div>
+
+                <div>
+                    <textarea id="pqrMensaje" rows="3" class="input-cyber resize-none" placeholder="Escribe aquí los detalles..." required></textarea>
+                    <span class="label-desc">Explícanos brevemente la situación.</span>
+                </div>
+
+                <button type="submit" id="btnEnviarPQR" class="w-full bg-[var(--cyan)] text-black font-cyber font-bold py-4 text-xl uppercase hover:bg-white transition shadow-[0_0_20px_var(--cyan)] mt-4">
+                    ENVIAR MENSAJE
+                </button>
+
+            </form>
+
+            <div id="pqrSuccess" class="hidden text-center py-10">
+                <div class="text-6xl mb-4">✅</div>
+                <h3 class="text-3xl font-cyber text-white mb-2">¡RECIBIDO!</h3>
+                <p class="text-gray-300">Gracias por escribirnos. Procesaremos tu solicitud pronto.</p>
+                <button onclick="closeScreen()" class="mt-8 border border-white text-white px-8 py-2 hover:bg-white hover:text-black font-bold uppercase transition">
+                    Volver al Inicio
+                </button>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        let inactivityTimeout;
+        const TIMEOUT_DURATION = 45000; // 45s
+
+        // --- NAVEGACIÓN ---
+        function openSchedule() {
+            transitionTo('resultsScreen');
+            fetchAndRenderData();
+        }
+
+        function openPQR() {
+            transitionTo('pqrScreen');
+            // Resetear formulario al abrir
+            document.getElementById('pqrForm').reset();
+            document.getElementById('pqrForm').classList.remove('hidden');
+            document.getElementById('pqrSuccess').classList.add('hidden');
+        }
+
+        function closeScreen() {
+            clearTimeout(inactivityTimeout);
+            document.getElementById('resultsScreen').classList.add('hidden');
+            document.getElementById('pqrScreen').classList.add('hidden');
+            
+            const start = document.getElementById('startScreen');
+            start.classList.remove('hidden');
+            setTimeout(() => start.classList.remove('opacity-0', 'pointer-events-none'), 50);
+        }
+
+        function transitionTo(screenId) {
+            document.getElementById('startScreen').classList.add('opacity-0', 'pointer-events-none');
+            setTimeout(() => {
+                document.getElementById('startScreen').classList.add('hidden');
+                document.getElementById(screenId).classList.remove('hidden');
+                resetTimer();
+            }, 500);
+        }
+
+        function resetTimer() {
+            clearTimeout(inactivityTimeout);
+            inactivityTimeout = setTimeout(closeScreen, TIMEOUT_DURATION);
+        }
+
+        document.addEventListener('click', () => {
+            const isStart = !document.getElementById('startScreen').classList.contains('hidden');
+            if(!isStart) resetTimer();
+        });
+        document.getElementById('scrollContainer').addEventListener('scroll', resetTimer);
+
+        // --- LÓGICA DE AGENDA (Igual que antes) ---
+        function fetchAndRenderData() {
+            fetch('/api/appointments/kiosk-day')
+                .then(res => res.json())
+                .then(data => {
+                    document.getElementById('systemTime').innerText = data.currentTimeStr;
+                    renderTimeline(data.appointments, data.currentHourInt);
+                })
+                .catch(err => console.error("Error API", err));
+        }
+
+        function renderTimeline(appointments, currentHour) {
+            const container = document.getElementById('appointmentsList');
+            container.innerHTML = '';
+
+            if (appointments.length === 0) {
+                container.innerHTML = `<div class="text-center text-gray-500 text-2xl font-cyber mt-20">NO HAY CITAS HOY</div>`;
+                return;
+            }
+
+            const grouped = {};
+            appointments.forEach(appt => {
+                const hour = parseInt(appt.start_time.split(':')[0]);
+                if (!grouped[hour]) grouped[hour] = [];
+                grouped[hour].push(appt);
+            });
+
+            const sortedHours = Object.keys(grouped).map(Number).sort((a, b) => a - b);
+
+            sortedHours.forEach(hour => {
+                const isPast = hour < currentHour;
+                const isCurrent = hour === currentHour;
+                const styleClass = isPast ? 'card-past' : 'card-future';
+                
+                const ampm = hour >= 12 ? 'PM' : 'AM';
+                const hour12 = hour % 12 || 12;
+
+                const block = document.createElement('div');
+                block.id = `hour-block-${hour}`;
+                block.className = `p-6 rounded-xl backdrop-blur-md transition-all duration-500 fade-in ${styleClass}`;
+                
+                let html = `
+                    <div class="flex items-center gap-4 mb-4 border-b border-gray-600/50 pb-2">
+                        <h3 class="text-5xl font-cyber font-bold ${isPast ? 'text-gray-500' : 'text-white'} time-display">
+                            ${hour12}:00 <span class="text-xl">${ampm}</span>
+                        </h3>
+                        ${isCurrent ? '<span class="bg-[var(--cyan)] text-black font-bold px-3 py-1 text-sm rounded animate-pulse">EN CURSO</span>' : ''}
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                `;
+
+                grouped[hour].forEach(appt => {
+                    const mins = appt.start_time.split(':')[1];
+                    let service = "GENERAL";
+                    let role = (appt.staff_rol || "").toLowerCase();
+                    if(role.includes('entrenador')) service = "ENTRENAMIENTO";
+                    if(role.includes('fisio')) service = "FISIOTERAPIA";
+                    if(role.includes('spa')) service = "SPA";
+
+                    // HORA EN PUNTO SIEMPRE VISIBLE
+                    html += `
+                        <div class="bg-black/40 p-4 rounded border ${isPast ? 'border-gray-700' : 'border-white/10'} flex justify-between items-center">
+                            <div>
+                                <p class="${isPast ? 'text-gray-600' : 'text-gray-400'} text-xs font-cyber tracking-widest mb-1">${service}</p>
+                                <h4 class="text-2xl font-bold ${isPast ? 'text-gray-500' : 'text-white'} truncate max-w-[200px] md:max-w-[300px]">
+                                    ${appt.cliente.toLowerCase().replace(/\b\w/g, l => l.toUpperCase())}
+                                </h4>
+                                <p class="text-xs mt-1 ${isPast ? 'text-gray-700' : 'text-[var(--cyan)]'} uppercase">
+                                    Staff: ${appt.staff_nombre}
+                                </p>
+                            </div>
+                            <div class="text-right">
+                                <span class="text-2xl font-cyber font-bold ${isPast ? 'text-gray-600' : 'text-white'}">
+                                    ${hour12}:${mins} <span class="text-xs">${ampm}</span>
+                                </span>
+                            </div>
+                        </div>
+                    `;
+                });
+
+                html += `</div>`;
+                block.innerHTML = html;
+                container.appendChild(block);
+            });
+
+            setTimeout(() => {
+                let targetBlock = document.getElementById(`hour-block-${currentHour}`);
+                if (!targetBlock) {
+                    const nextAvailable = sortedHours.find(h => h > currentHour);
+                    if (nextAvailable) targetBlock = document.getElementById(`hour-block-${nextAvailable}`);
+                    else {
+                        const lastHour = sortedHours[sortedHours.length - 1];
+                        if (lastHour) targetBlock = document.getElementById(`hour-block-${lastHour}`);
+                    }
+                }
+                if (targetBlock) targetBlock.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }, 300);
+        }
+
+        // --- ENVÍO DE PQR AL WEBHOOK ---
+        function sendPQR(e) {
+            e.preventDefault();
+            
+            const btn = document.getElementById('btnEnviarPQR');
+            const originalText = btn.innerText;
+            btn.disabled = true;
+            btn.innerText = "ENVIANDO...";
+            btn.classList.add('opacity-50');
+
+            const data = {
+                nombre: document.getElementById('pqrNombre').value,
+                contacto: document.getElementById('pqrContacto').value,
+                tipo: document.getElementById('pqrTipo').value,
+                mensaje: document.getElementById('pqrMensaje').value,
+                fecha: new Date().toLocaleString()
+            };
+
+            // Enviar al Webhook de N8N
+            fetch('https://n8n.magnificapec.com/webhook/99593cc7-30c8-4170-a39a-9ad14bd2a49b', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            })
+            .then(response => {
+                // Ocultar formulario, mostrar éxito
+                document.getElementById('pqrForm').classList.add('hidden');
+                document.getElementById('pqrSuccess').classList.remove('hidden');
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Hubo un error al enviar. Por favor intenta nuevamente.');
+                btn.disabled = false;
+                btn.innerText = originalText;
+                btn.classList.remove('opacity-50');
+            });
+        }
+
+    </script>
+</body>
+</html>

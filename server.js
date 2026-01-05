@@ -39,6 +39,46 @@ db.connect(err => {
 // --- RUTAS DE API (BACKEND) ---
 
 // 1. Registro de Administrador
+// 1. Registro de Administrador
+app.post('/api/register', (req, res) => {
+    const { nombre, email, password, secretCode } = req.body;
+
+     // A. AUTENTICACIÓN DE ADMINISTRADOR
+    const CODIGO_SECRETO_REQUERIDO = 'Mafexpress2026!'; 
+
+    if (secretCode !== CODIGO_SECRETO_REQUERIDO) {
+        return res.json({ success: false, message: 'Código de seguridad inválido. No tienes permiso para crear admins.' });
+    }
+
+    // B. VALIDACIÓN DE DATOS
+    if (!nombre || !email || !password) {
+        return res.json({ success: false, message: 'Por favor completa todos los campos.' });
+    }
+
+    // C. VERIFICAR QUE EL EMAIL NO EXISTA YA
+    const checkSql = 'SELECT id FROM admins WHERE email = ?';
+    db.query(checkSql, [email], (err, results) => {
+        if (err) {
+            console.error(err);
+            return res.status(500).json({ success: false, message: 'Error verificando cuenta.' });
+        }
+
+        if (results.length > 0) {
+            return res.json({ success: false, message: 'Este correo ya está registrado como administrador.' });
+        }
+
+        // D. INSERTAR EN LA BASE DE DATOS
+        // Nota: Se guarda la contraseña tal cual para ser compatible con tu sistema de login actual.
+        const insertSql = 'INSERT INTO admins (nombre, email, password) VALUES (?, ?, ?)';
+        db.query(insertSql, [nombre, email, password], (err, result) => {
+            if (err) {
+                console.error(err);
+                return res.status(500).json({ success: false, message: 'Error guardando en base de datos.' });
+            }
+            res.json({ success: true, message: '¡Administrador registrado exitosamente!' });
+        });
+    });
+});
 // 2. Login Mejorado (Admin o Staff)
 app.post('/api/login', (req, res) => {
     const { email, password } = req.body;
@@ -571,6 +611,50 @@ app.put('/api/Appointments/:id/cancel', (req, res) => {
     db.query(sql, [id], (err, result) => {
         if (err) return res.status(500).json({ success: false, message: 'Error al cancelar' });
         res.json({ success: true, message: 'Cita cancelada correctamente' });
+    });
+});
+// ==========================================
+// RUTA KIOSCO: TODA LA AGENDA DEL DÍA
+// ==========================================
+app.get('/api/appointments/kiosk-day', (req, res) => {
+    const now = new Date();
+    
+    // Hora actual del sistema (0-23) para que el frontend sepa cuál enfocar
+    const currentHour = now.getHours(); 
+    const currentMinutes = now.getMinutes();
+
+    const displayTime = now.toLocaleTimeString('es-CO', { 
+        hour: '2-digit', 
+        minute: '2-digit',
+        hour12: true 
+    });
+
+    // Consulta: TODAS las citas confirmadas DE HOY ordenadas por hora
+    const sql = `
+        SELECT 
+            a.start_time, 
+            u.USUARIO as cliente, 
+            s.name as staff_nombre,
+            s.role as staff_rol
+        FROM Appointments a
+        JOIN Users u ON a.user_id = u.id
+        JOIN Staff s ON a.staff_id = s.id
+        WHERE a.appointment_date = CURDATE()
+          AND a.status = 'confirmed'
+        ORDER BY a.start_time ASC
+    `;
+
+    db.query(sql, (err, results) => {
+        if (err) {
+            console.error(err);
+            return res.status(500).json({ error: 'Error interno' });
+        }
+
+        res.json({
+            currentTimeStr: displayTime,
+            currentHourInt: currentHour,
+            appointments: results
+        });
     });
 });
 // Iniciar Servidor
