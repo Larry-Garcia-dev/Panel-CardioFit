@@ -657,6 +657,40 @@ app.get('/api/appointments/kiosk-day', (req, res) => {
         });
     });
 });
+
+// ... (código existente)
+
+// ==========================================
+// NUEVA RUTA: Obtener citas por rango para un Staff específico
+// ==========================================
+app.get('/api/appointments/staff-range', (req, res) => {
+    const { staffId, start, end } = req.query;
+
+    if (!staffId || !start || !end) {
+        return res.status(400).json({ error: 'Faltan parámetros' });
+    }
+
+    const sql = `
+        SELECT a.id, a.appointment_date, a.start_time, a.end_time, a.status,
+               u.USUARIO as cliente, u.TELEFONO, u.PLAN
+        FROM Appointments a
+        JOIN Users u ON a.user_id = u.id
+        WHERE a.staff_id = ? 
+          AND a.appointment_date BETWEEN ? AND ?
+          AND a.status = 'confirmed'
+        ORDER BY a.appointment_date ASC, a.start_time ASC
+    `;
+
+    db.query(sql, [staffId, start, end], (err, results) => {
+        if (err) {
+            console.error(err);
+            return res.status(500).json({ error: 'Error db' });
+        }
+        res.json(results);
+    });
+});
+
+// ... (resto del código, app.listen, etc.)
 // Iniciar Servidor
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
