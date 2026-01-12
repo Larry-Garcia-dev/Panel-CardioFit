@@ -174,77 +174,7 @@ app.get('/api/Users/search', (req, res) => {
     });
 });
 
-// 6. Agenda del Día (Citas de HOY)
-// ==========================================
-// NUEVO CONTROLADOR DE AGENDAMIENTO (GRID)
-// ==========================================
 
-// 1. OBTENER DATOS DE LA GRILLA (Staff + Citas del día)
-app.get('/api/scheduler/grid', (req, res) => {
-    const date = req.query.date || new Date().toISOString().split('T')[0];
-
-    // Traemos todos los STAFF activos ordenados
-    const sqlStaff = 'SELECT id, name, role FROM Staff WHERE is_active = 1 ORDER BY priority_order ASC';
-    
-    // Traemos todas las CITAS confirmadas de esa fecha
-    // Incluimos datos del cliente para mostrar en la grilla
-    const sqlAppts = `
-        SELECT a.id, a.staff_id, a.start_time, a.user_id, 
-               u.USUARIO as cliente, u.TELEFONO, u.N_CEDULA
-        FROM Appointments a
-        JOIN Users u ON a.user_id = u.id
-        WHERE a.appointment_date = ? AND a.status = 'confirmed'
-    `;
-
-    db.query(sqlStaff, (err, staffList) => {
-        if (err) return res.status(500).json({ error: 'Error cargando staff' });
-
-        db.query(sqlAppts, [date], (err, appointments) => {
-            if (err) return res.status(500).json({ error: 'Error cargando citas' });
-
-            // Enviamos ambos objetos para que el Frontend construya la matriz
-            res.json({ staff: staffList, appointments: appointments });
-        });
-    });
-});
-
-// 2. AGENDAR CITA (Sobreescribir la ruta anterior POST /api/Appointments)
-// Lógica: Validar manualmente que no haya más de 5 personas en esa hora/staff
-app.post('/api/scheduler/book', (req, res) => {
-    const { userId, staffId, date, time } = req.body; // time formato "07:00:00"
-
-    // Validar capacidad (Máximo 5)
-    const sqlCount = `
-        SELECT COUNT(*) as total 
-        FROM Appointments 
-        WHERE staff_id = ? AND appointment_date = ? AND start_time = ? AND status = 'confirmed'
-    `;
-
-    db.query(sqlCount, [staffId, date, time], (err, result) => {
-        if (err) return res.status(500).json({ success: false, message: 'Error verificando cupos.' });
-
-        const ocupados = result[0].total;
-        if (ocupados >= 5) {
-            return res.json({ success: false, message: '⛔ Cupo lleno. Ya hay 5 personas agendadas en este horario.' });
-        }
-
-        // Si hay espacio, insertamos
-        const sqlInsert = `
-            INSERT INTO Appointments (user_id, staff_id, appointment_date, start_time, end_time, status)
-            VALUES (?, ?, ?, ?, ADDTIME(?, '01:00:00'), 'confirmed')
-        `;
-
-        db.query(sqlInsert, [userId, staffId, date, time, time], (err, insertRes) => {
-            if (err) return res.status(500).json({ success: false, message: 'Error creando cita.' });
-            
-            res.json({ success: true, message: '✅ Cita agendada correctamente.' });
-        });
-    });
-});
-
-// 3. CANCELAR CITA (Reutiliza tu ruta existente PUT /api/Appointments/:id/cancel)
-// Asegúrate de que esa ruta exista en tu server.js actual.
-// --- NUEVAS RUTAS FASE 3 (EDICIÓN) ---
 
 // 7. Obtener detalles de un usuario específico
 app.get('/api/Users/:id', (req, res) => {
