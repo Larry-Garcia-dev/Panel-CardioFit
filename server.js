@@ -8,6 +8,7 @@ const cron = require('node-cron');
 const axios = require('axios')
 const app = express();
 const staffRoutes = require('./routes/staff');
+const schedulerRoutes = require('./routes/scheduler');
 
 // Configuración de Middleware
 app.use(bodyParser.json());
@@ -174,25 +175,75 @@ app.get('/api/Users/search', (req, res) => {
 });
 
 // 6. Agenda del Día (Citas de HOY)
-app.get('/api/appointments/today', (req, res) => {
-    // CAMBIO: Agregamos u.TELEFONO a la consulta
-    const sql = `
-        SELECT a.id, a.start_time, a.end_time, u.USUARIO as cliente, u.TELEFONO, s.name as entrenador
+// ==========================================
+// NUEVO CONTROLADOR DE AGENDAMIENTO (GRID)
+// ==========================================
+
+// 1. OBTENER DATOS DE LA GRILLA (Staff + Citas del día)
+app.get('/api/scheduler/grid', (req, res) => {
+    const date = req.query.date || new Date().toISOString().split('T')[0];
+
+    // Traemos todos los STAFF activos ordenados
+    const sqlStaff = 'SELECT id, name, role FROM Staff WHERE is_active = 1 ORDER BY priority_order ASC';
+    
+    // Traemos todas las CITAS confirmadas de esa fecha
+    // Incluimos datos del cliente para mostrar en la grilla
+    const sqlAppts = `
+        SELECT a.id, a.staff_id, a.start_time, a.user_id, 
+               u.USUARIO as cliente, u.TELEFONO, u.N_CEDULA
         FROM Appointments a
         JOIN Users u ON a.user_id = u.id
-        JOIN Staff s ON a.staff_id = s.id
-        WHERE a.appointment_date = CURDATE()
-        ORDER BY a.start_time ASC
+        WHERE a.appointment_date = ? AND a.status = 'confirmed'
     `;
 
-    db.query(sql, (err, results) => {
-        if (err) {
-            console.error(err);
-            return res.status(500).json({ error: 'Error cargando agenda' });
-        }
-        res.json(results);
+    db.query(sqlStaff, (err, staffList) => {
+        if (err) return res.status(500).json({ error: 'Error cargando staff' });
+
+        db.query(sqlAppts, [date], (err, appointments) => {
+            if (err) return res.status(500).json({ error: 'Error cargando citas' });
+
+            // Enviamos ambos objetos para que el Frontend construya la matriz
+            res.json({ staff: staffList, appointments: appointments });
+        });
     });
 });
+
+// 2. AGENDAR CITA (Sobreescribir la ruta anterior POST /api/Appointments)
+// Lógica: Validar manualmente que no haya más de 5 personas en esa hora/staff
+app.post('/api/scheduler/book', (req, res) => {
+    const { userId, staffId, date, time } = req.body; // time formato "07:00:00"
+
+    // Validar capacidad (Máximo 5)
+    const sqlCount = `
+        SELECT COUNT(*) as total 
+        FROM Appointments 
+        WHERE staff_id = ? AND appointment_date = ? AND start_time = ? AND status = 'confirmed'
+    `;
+
+    db.query(sqlCount, [staffId, date, time], (err, result) => {
+        if (err) return res.status(500).json({ success: false, message: 'Error verificando cupos.' });
+
+        const ocupados = result[0].total;
+        if (ocupados >= 5) {
+            return res.json({ success: false, message: '⛔ Cupo lleno. Ya hay 5 personas agendadas en este horario.' });
+        }
+
+        // Si hay espacio, insertamos
+        const sqlInsert = `
+            INSERT INTO Appointments (user_id, staff_id, appointment_date, start_time, end_time, status)
+            VALUES (?, ?, ?, ?, ADDTIME(?, '01:00:00'), 'confirmed')
+        `;
+
+        db.query(sqlInsert, [userId, staffId, date, time, time], (err, insertRes) => {
+            if (err) return res.status(500).json({ success: false, message: 'Error creando cita.' });
+            
+            res.json({ success: true, message: '✅ Cita agendada correctamente.' });
+        });
+    });
+});
+
+// 3. CANCELAR CITA (Reutiliza tu ruta existente PUT /api/Appointments/:id/cancel)
+// Asegúrate de que esa ruta exista en tu server.js actual.
 // --- NUEVAS RUTAS FASE 3 (EDICIÓN) ---
 
 // 7. Obtener detalles de un usuario específico
@@ -415,90 +466,7 @@ app.get('/api/staff', (req, res) => {
 // ==========================================
 // 10. Agendar Cita con Envío a Webhook
 // ==========================================
-app.post('/api/Appointments', (req, res) => {
-    const { userId, fecha, hora, staffId } = req.body;
 
-    if (!userId || !fecha || !hora || !staffId) {
-        return res.status(400).json({
-            success: false,
-            message: 'Faltan datos: Debes seleccionar un profesional, fecha y hora.'
-        });
-    }
-
-    const formattedTime = hora.includes(':') && hora.split(':').length === 2 ? `${hora}:00` : hora;
-    const dayOfWeek = new Date(fecha).getUTCDay() + 1; // 1=Lunes, 7=Domingo
-
-    // 1. Obtener información completa para el Webhook (Usuario, Staff y Horario)
-    const sqlFullInfo = `
-        SELECT 
-            u.USUARIO as cliente_nombre, u.TELEFONO as cliente_tel, u.CORREO_ELECTRONICO as cliente_email,
-            s.name as staff_nombre, s.role as staff_role,
-            ws.start_time, ws.end_time 
-        FROM Users u, Staff s
-        JOIN WeeklySchedules ws ON s.id = ws.staff_id
-        WHERE u.id = ? AND s.id = ? AND ws.day_of_week = ? 
-          AND ? >= ws.start_time AND ? < ws.end_time
-    `;
-
-    db.query(sqlFullInfo, [userId, staffId, dayOfWeek, formattedTime, formattedTime], (err, infoResults) => {
-        if (err || infoResults.length === 0) {
-            return res.status(400).json({ success: false, message: 'Error de validación o el profesional no está disponible.' });
-        }
-
-        const details = infoResults[0];
-        
-        // --- Lógica de capacidad dinámica (Simplificada para el ejemplo) ---
-        // Aquí iría tu validación de 4 o 5 personas según el orden de prioridad
-        const maxCapacity = 5; // Ajustar según tu lógica de prioridad previa
-
-        const sqlCheck = `SELECT COUNT(*) as current FROM Appointments WHERE staff_id = ? AND appointment_date = ? AND start_time = ? AND status = 'confirmed'`;
-        
-        db.query(sqlCheck, [staffId, fecha, formattedTime], (err, checkRes) => {
-            if (checkRes[0].current >= maxCapacity) {
-                return res.status(400).json({ success: false, message: 'Cupo lleno.' });
-            }
-
-            // 2. Insertar en Base de Datos
-            const sqlInsert = `INSERT INTO Appointments (user_id, staff_id, appointment_date, start_time, end_time, status) VALUES (?, ?, ?, ?, ADDTIME(?, '01:00:00'), 'confirmed')`;
-            
-            db.query(sqlInsert, [userId, staffId, fecha, formattedTime, formattedTime], async (err, result) => {
-                if (err) return res.status(500).json({ success: false, message: 'Error al registrar.' });
-
-                // 3. ENVÍO AL WEBHOOK
-                const webhookData = {
-                    evento: "nueva_cita",
-                    cita_id: result.insertId,
-                    fecha: fecha,
-                    hora: formattedTime,
-                    cliente: {
-                        id: userId,
-                        nombre: details.cliente_nombre,
-                        telefono: details.cliente_tel,
-                        email: details.cliente_email
-                    },
-                    staff: {
-                        id: staffId,
-                        nombre: details.staff_nombre,
-                        rol: details.staff_role
-                    },
-                    notificacion: "Cita agendada mediante Panel CardioFit"
-                };
-
-                try {
-                    await axios.post('https://n8n.magnificapec.com/webhook/ff5e2454-2c1b-4542-be55-48408d97b4e8-panel', webhookData);
-                    console.log("✅ Webhook enviado correctamente");
-                } catch (error) {
-                    console.error("❌ Error enviando al Webhook:", error.message);
-                }
-
-                res.json({ 
-                    success: true, 
-                    message: `Cita confirmada con ${details.staff_nombre}. Los detalles se enviaron al sistema de notificaciones.` 
-                });
-            });
-        });
-    });
-});
 
 // ==========================================
 // TAREA AUTOMÁTICA: DESCONGELAMIENTO DIARIO
@@ -578,41 +546,10 @@ app.post('/api/Users/create', (req, res) => {
 // ==========================================
 
 // A. Ver todas las reservas (con buscador)
-app.get('/api/Appointments/all', (req, res) => {
-    const query = req.query.q || ''; // Texto del buscador
 
-    const sql = `
-        SELECT a.id, a.appointment_date, a.start_time, a.status, 
-               u.USUARIO as cliente, u.TELEFONO, s.name as entrenador
-        FROM Appointments a
-        JOIN Users u ON a.user_id = u.id
-        JOIN Staff s ON a.Staff_id = s.id
-        WHERE u.USUARIO LIKE ? OR s.name LIKE ?
-        ORDER BY a.appointment_date DESC, a.start_time ASC
-        LIMIT 50
-    `;
-
-    const searchTerm = `%${query}%`;
-
-    db.query(sql, [searchTerm, searchTerm], (err, results) => {
-        if (err) {
-            console.error(err);
-            return res.status(500).json({ error: 'Error cargando reservas' });
-        }
-        res.json(results);
-    });
-});
 
 // B. Cancelar una reserva
-app.put('/api/Appointments/:id/cancel', (req, res) => {
-    const id = req.params.id;
-    const sql = "UPDATE Appointments SET status = 'cancelled' WHERE id = ?";
 
-    db.query(sql, [id], (err, result) => {
-        if (err) return res.status(500).json({ success: false, message: 'Error al cancelar' });
-        res.json({ success: true, message: 'Cita cancelada correctamente' });
-    });
-});
 // ==========================================
 // RUTA KIOSCO: TODA LA AGENDA DEL DÍA
 // ==========================================
@@ -692,6 +629,7 @@ app.get('/api/appointments/staff-range', (req, res) => {
 
 // ... (resto del código, app.listen, etc.)
 // Iniciar Servidor
+app.use('/api/scheduler', schedulerRoutes);
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
     console.log(`🚀 Servidor corriendo en http://localhost:${PORT}`);
