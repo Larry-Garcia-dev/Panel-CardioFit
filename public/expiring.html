@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Control de Vencimientos - CardioFit</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+        <link rel="shortcut icon" href="logo.jpg" type="image/x-icon">
+
+</head>
+<body class="bg-gray-100 font-sans h-screen flex flex-col">
+
+    <nav class="bg-blue-900 text-white p-4 flex justify-between items-center shadow-lg sticky top-0 z-30">
+        <div class="flex items-center gap-3">
+            <a href="/index.html" class="bg-blue-800 hover:bg-blue-700 px-4 py-2 rounded text-sm font-bold flex items-center gap-2 transition">
+                ⬅ Volver al Panel
+            </a>
+            <h1 class="text-xl font-bold tracking-wider">MONITOREO DE MEMBRESÍAS</h1>
+        </div>
+    </nav>
+
+    <div class="flex-1 container mx-auto p-6 overflow-y-auto">
+        
+        <div class="mb-10">
+            <h2 class="text-2xl font-bold text-red-600 mb-4 flex items-center gap-2">
+                ⚠️ Membresías por Vencer (Próximos 10 días)
+            </h2>
+            <div class="bg-white rounded-xl shadow-lg overflow-hidden border border-red-100">
+                <table class="w-full text-left border-collapse">
+                    <thead class="bg-red-50 text-red-800 uppercase font-bold text-xs">
+                        <tr>
+                            <th class="p-4">Días</th>
+                            <th class="p-4">Vencimiento</th>
+                            <th class="p-4">Cliente</th>
+                            <th class="p-4">Plan</th>
+                            <th class="p-4 text-center">Gestión</th>
+                        </tr>
+                    </thead>
+                    <tbody id="expiringTableBody" class="divide-y divide-gray-100">
+                        </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="text-center mb-6">
+            <button onclick="toggleAllUsers()" class="bg-gray-800 text-white px-6 py-3 rounded-lg font-bold shadow hover:bg-gray-900 transition flex items-center gap-2 mx-auto">
+                🔍 Ver Lista Completa de Usuarios
+            </button>
+        </div>
+
+        <div id="allUsersSection" class="hidden mb-10">
+            <h2 class="text-xl font-bold text-gray-700 mb-4">Base de Datos Completa</h2>
+            <div class="bg-white rounded-xl shadow border border-gray-200 overflow-hidden">
+                <div class="max-h-[500px] overflow-y-auto">
+                    <table class="w-full text-left text-sm">
+                        <thead class="bg-gray-100 text-gray-600 uppercase font-bold text-xs sticky top-0">
+                            <tr>
+                                <th class="p-3">Cliente</th>
+                                <th class="p-3">Cédula</th>
+                                <th class="p-3">Estado</th>
+                                <th class="p-3">Vencimiento</th>
+                                <th class="p-3 text-center">Acción</th>
+                            </tr>
+                        </thead>
+                        <tbody id="allUsersTableBody" class="divide-y divide-gray-100">
+                            </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <div id="userModal" class="fixed inset-0 bg-black bg-opacity-60 hidden flex items-center justify-center z-50 backdrop-blur-sm overflow-y-auto py-10">
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-4xl relative my-auto">
+            <div class="bg-blue-900 p-4 flex justify-between items-center text-white rounded-t-xl sticky top-0 z-10">
+                <h2 class="text-xl font-bold">Editar Usuario</h2>
+                <button onclick="closeModal()" class="hover:bg-blue-700 p-1 rounded text-2xl font-bold">&times;</button>
+            </div>
+            <div class="p-6 max-h-[80vh] overflow-y-auto">
+                <input type="hidden" id="editUserId">
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                    <div><label class="block text-xs font-bold text-gray-500">Nombre</label><input type="text" id="editNombre" class="w-full border p-2 rounded"></div>
+                    <div><label class="block text-xs font-bold text-gray-500">Cédula</label><input type="text" id="editCedula" class="w-full border p-2 rounded"></div>
+                    <div><label class="block text-xs font-bold text-gray-500">Teléfono</label><input type="text" id="editTelefono" class="w-full border p-2 rounded"></div>
+                    <div><label class="block text-xs font-bold text-gray-500">Correo</label><input type="text" id="editCorreo" class="w-full border p-2 rounded"></div>
+                    <div><label class="block text-xs font-bold text-gray-500">Dirección</label><input type="text" id="editDireccion" class="w-full border p-2 rounded"></div>
+                    <div><label class="block text-xs font-bold text-gray-500">Plan</label>
+                        <select id="planSelect" class="w-full border p-2 rounded mb-2">
+                            <option value="EXPERIENCIA FITNESS PLAN BÁSICO">EXPERIENCIA FITNESS PLAN BÁSICO</option>
+                            <option value="EXPERIENCIA FITNESS (ESTÁNDAR)">EXPERIENCIA FITNESS (ESTÁNDAR)</option>
+                            <option value="EXPERIENCIA FITNESS DE LUJO">EXPERIENCIA FITNESS DE LUJO</option>
+                            <option value="Otro">Otro...</option>
+                        </select>
+                        <input type="text" id="planManualInput" class="hidden w-full border p-2 rounded" placeholder="Nombre plan manual">
+                    </div>
+                    <div><label class="block text-xs font-bold text-gray-500">Estado</label>
+                        <select id="editEstado" class="w-full border p-2 rounded">
+                            <option value="ACTIVO">ACTIVO</option>
+                            <option value="INACTIVO">INACTIVO</option>
+                            <option value="CONGELADO">CONGELADO</option>
+                            <option value="VENCIDO">VENCIDO</option>
+                        </select>
+                    </div>
+                    <div><label class="block text-xs font-bold text-gray-500">F. Vencimiento</label><input type="date" id="editFVencimiento" class="w-full border p-2 rounded"></div>
+                </div>
+
+                <div class="hidden">
+                    <input id="editNacimiento"><input id="editEdad"><input id="editSexo">
+                    <input id="editFIngreso"><input id="editFExamen"><input id="editFNutricion">
+                    <textarea id="editFDeportiva"></textarea>
+                    <input id="freezeStart"><input id="freezeEnd">
+                    <div id="infoCongelamiento"><input id="viewInicioCongelamiento"><input id="viewFinCongelamiento"></div>
+                </div>
+
+                <div class="flex justify-end gap-3 mt-6">
+                    <button onclick="closeModal()" class="px-4 py-2 bg-gray-200 rounded font-bold">Cancelar</button>
+                    <button onclick="saveUserChanges()" class="px-4 py-2 bg-blue-600 text-white rounded font-bold hover:bg-blue-700">Guardar Cambios</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="expiring.js"></script>
+</body>
+</html>

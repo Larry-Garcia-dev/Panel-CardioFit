@@ -9,17 +9,73 @@ const axios = require('axios')
 const app = express();
 const staffRoutes = require('./routes/staff');
 const schedulerRoutes = require('./routes/scheduler');
+const membershipRoutes = require('./routes/memberships');
 
 // Configuración de Middleware
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
-app.use(express.static('public')); // Sirve los archivos HTML/CSS
 app.use(session({
     secret: process.env.SESSION_SECRET,
     resave: false,
     saveUninitialized: true
 }));
+// 2. SEGUNDO: Middleware de Seguridad (El "Portero")
+app.use((req, res, next) => {
+    // A. LISTA BLANCA: Rutas que TODO EL MUNDO puede ver
+    const rutasPublicas = [
+        '/login.html',
+        '/register.html',
+        '/kiosk.html',               // <--- TU REQUERIMIENTO: Kiosco público
+        '/api/login',                // Necesario para entrar
+        '/api/register',             // Necesario para registrarse
+        '/api/check-session',        // Necesario para verificar estado
+        '/api/appointments/kiosk-day', // IMPORTANTE: Datos que consume el Kiosco
+        '/api/scheduler/book'        // (Opcional) Si el kiosco permitiera agendar, si no, quítalo
+    ];
+
+    // B. Si la ruta es pública, dejar pasar
+    if (rutasPublicas.includes(req.path)) {
+        return next();
+    }
+
+    // C. Recursos Estáticos (CSS, JS, Imágenes, Fuentes)
+    // Dejamos pasar todo lo que tenga extensión (punto) PERO que NO sea .html
+    // Esto asegura que los estilos y scripts carguen en el Login y Kiosco.
+    if (req.path.includes('.') && !req.path.endsWith('.html')) {
+        return next();
+    }
+
+    // D. Verificar si el usuario YA inició sesión
+    if (req.session.loggedin) {
+        return next(); // Tiene permiso, pase.
+    }
+
+    // --- RECHAZOS Y REDIRECCIONES ---
+
+    // Caso 1: Intentan entrar a la raíz '/' sin sesión -> Al Login
+    if (req.path === '/') {
+        return res.redirect('/login.html');
+    }
+
+    // Caso 2: Intentan ver un HTML protegido (ej: index.html, expiring.html) -> Al Login
+    if (req.path.endsWith('.html')) {
+        return res.redirect('/login.html');
+    }
+
+    // Caso 3: Intentan usar una API protegida sin sesión -> Error 401
+    if (req.path.startsWith('/api/')) {
+        return res.status(401).json({ success: false, message: 'No autorizado. Inicie sesión.' });
+    }
+
+    next();
+});
+
+
+app.use(express.static('public')); // Sirve los archivos HTML/CSS
 app.use('/api/staff-management', staffRoutes);
+app.use('/api/memberships', membershipRoutes);
+app.use('/api/scheduler', schedulerRoutes);
+
 
 // Conexión a Base de Datos
 const db = mysql.createConnection({
@@ -559,7 +615,6 @@ app.get('/api/appointments/staff-range', (req, res) => {
 
 // ... (resto del código, app.listen, etc.)
 // Iniciar Servidor
-app.use('/api/scheduler', schedulerRoutes);
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
     console.log(`🚀 Servidor corriendo en http://localhost:${PORT}`);
