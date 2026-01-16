@@ -10,6 +10,7 @@ const app = express();
 const staffRoutes = require('./routes/staff');
 const schedulerRoutes = require('./routes/scheduler');
 const membershipRoutes = require('./routes/memberships');
+const n8nRoutes = require('./api/external-scheduler');
 
 // Configuración de Middleware
 app.use(bodyParser.json());
@@ -30,7 +31,8 @@ app.use((req, res, next) => {
         '/api/register',             // Necesario para registrarse
         '/api/check-session',        // Necesario para verificar estado
         '/api/appointments/kiosk-day', // IMPORTANTE: Datos que consume el Kiosco
-        '/api/scheduler/book'        // (Opcional) Si el kiosco permitiera agendar, si no, quítalo
+        '/api/scheduler/book',        // (Opcional) Si el kiosco permitiera agendar, si no, quítalo
+        '/api/n8n/agendar'
     ];
 
     // B. Si la ruta es pública, dejar pasar
@@ -75,6 +77,7 @@ app.use(express.static('public')); // Sirve los archivos HTML/CSS
 app.use('/api/staff-management', staffRoutes);
 app.use('/api/memberships', membershipRoutes);
 app.use('/api/scheduler', schedulerRoutes);
+app.use('/api/n8n', n8nRoutes);
 
 
 // Conexión a Base de Datos
