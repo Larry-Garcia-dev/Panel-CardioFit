@@ -1,14 +1,9 @@
 // routes/memberships.js
 const express = require('express');
 const router = express.Router();
-const mysql = require('mysql2');
 
-const db = mysql.createConnection({
-    host: process.env.DB_HOST,
-    user: process.env.DB_USER,
-    password: process.env.DB_PASS,
-    database: process.env.DB_NAME
-});
+// IMPORTANTE: Conexión compartida
+const db = require('../config/db');
 
 // 1. Obtener membresías que vencen en los próximos 10 días
 router.get('/expiring', (req, res) => {

@@ -1,15 +1,9 @@
 // routes/staff.js
 const express = require('express');
 const router = express.Router();
-const mysql = require('mysql2');
 
-// Reutilizamos la conexión (o puedes pasarla como dependencia, aquí asumimos que tienes acceso a las variables de entorno)
-const db = mysql.createConnection({
-    host: process.env.DB_HOST,
-    user: process.env.DB_USER,
-    password: process.env.DB_PASS,
-    database: process.env.DB_NAME
-});
+// IMPORTANTE: Conexión compartida
+const db = require('../config/db');
 
 // 1. Obtener lista de Staff (incluyendo inactivos para gestión)
 router.get('/all', (req, res) => {

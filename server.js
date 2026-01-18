@@ -1,100 +1,72 @@
 require('dotenv').config();
 const express = require('express');
-const mysql = require('mysql2');
-const bodyParser = require('body-parser');
 const session = require('express-session');
 const path = require('path');
 const cron = require('node-cron');
-const axios = require('axios')
-const app = express();
+const axios = require('axios');
+
+// IMPORTAR CONEXIÓN COMPARTIDA (POOL)
+// Esta línea carga la configuración de config/db.js
+// Ya no necesitamos 'mysql2' ni crear conexiones aquí.
+const db = require('./config/db'); 
+
+// IMPORTAR RUTAS
 const staffRoutes = require('./routes/staff');
 const schedulerRoutes = require('./routes/scheduler');
 const membershipRoutes = require('./routes/memberships');
 const n8nRoutes = require('./api/external-scheduler');
 
-// Configuración de Middleware
-app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: true }));
+const app = express();
+
+// ==========================================
+// 1. MIDDLEWARE
+// ==========================================
+app.use(express.json()); 
+app.use(express.urlencoded({ extended: true }));
+
 app.use(session({
-    secret: process.env.SESSION_SECRET,
+    secret: process.env.SESSION_SECRET || 'secret_cardiofit',
     resave: false,
     saveUninitialized: true
 }));
-// 2. SEGUNDO: Middleware de Seguridad (El "Portero")
+
+// ==========================================
+// 2. MIDDLEWARE DE SEGURIDAD
+// ==========================================
 app.use((req, res, next) => {
-    // A. LISTA BLANCA: Rutas que TODO EL MUNDO puede ver
     const rutasPublicas = [
         '/login.html',
         '/register.html',
-        '/kiosk.html',               // <--- TU REQUERIMIENTO: Kiosco público
-        '/api/login',                // Necesario para entrar
-        '/api/register',             // Necesario para registrarse
-        '/api/check-session',        // Necesario para verificar estado
-        '/api/appointments/kiosk-day', // IMPORTANTE: Datos que consume el Kiosco
-        '/api/scheduler/book',        // (Opcional) Si el kiosco permitiera agendar, si no, quítalo
+        '/kiosk.html',
+        '/api/login',
+        '/api/register',
+        '/api/check-session',
+        '/api/appointments/kiosk-day',
+        '/api/scheduler/book',
         '/api/n8n/agendar'
     ];
 
-    // B. Si la ruta es pública, dejar pasar
-    if (rutasPublicas.includes(req.path)) {
-        return next();
-    }
+    if (req.path.includes('.') && !req.path.endsWith('.html')) return next();
+    if (rutasPublicas.includes(req.path)) return next();
+    if (req.session.loggedin) return next();
 
-    // C. Recursos Estáticos (CSS, JS, Imágenes, Fuentes)
-    // Dejamos pasar todo lo que tenga extensión (punto) PERO que NO sea .html
-    // Esto asegura que los estilos y scripts carguen en el Login y Kiosco.
-    if (req.path.includes('.') && !req.path.endsWith('.html')) {
-        return next();
-    }
-
-    // D. Verificar si el usuario YA inició sesión
-    if (req.session.loggedin) {
-        return next(); // Tiene permiso, pase.
-    }
-
-    // --- RECHAZOS Y REDIRECCIONES ---
-
-    // Caso 1: Intentan entrar a la raíz '/' sin sesión -> Al Login
-    if (req.path === '/') {
-        return res.redirect('/login.html');
-    }
-
-    // Caso 2: Intentan ver un HTML protegido (ej: index.html, expiring.html) -> Al Login
-    if (req.path.endsWith('.html')) {
-        return res.redirect('/login.html');
-    }
-
-    // Caso 3: Intentan usar una API protegida sin sesión -> Error 401
-    if (req.path.startsWith('/api/')) {
-        return res.status(401).json({ success: false, message: 'No autorizado. Inicie sesión.' });
-    }
+    if (req.path === '/' || req.path.endsWith('.html')) return res.redirect('/login.html');
+    if (req.path.startsWith('/api/')) return res.status(401).json({ success: false, message: 'No autorizado' });
 
     next();
 });
 
-
-app.use(express.static('public')); // Sirve los archivos HTML/CSS
+// ==========================================
+// 3. RUTAS
+// ==========================================
+app.use(express.static('public'));
 app.use('/api/staff-management', staffRoutes);
 app.use('/api/memberships', membershipRoutes);
 app.use('/api/scheduler', schedulerRoutes);
 app.use('/api/n8n', n8nRoutes);
 
 
-// Conexión a Base de Datos
-const db = mysql.createConnection({
-    host: process.env.DB_HOST,
-    user: process.env.DB_USER,
-    password: process.env.DB_PASS,
-    database: process.env.DB_NAME
-});
 
-db.connect(err => {
-    if (err) {
-        console.error('❌ Error conectando a MySQL:', err);
-        return;
-    }
-    console.log('✅ Conectado a MySQL Base de Datos: CardioFit');
-});
 
 // --- RUTAS DE API (BACKEND) ---
 
@@ -616,6 +588,16 @@ app.get('/api/appointments/staff-range', (req, res) => {
     });
 });
 
+
+db.getConnection((err, connection) => {
+    if (err) {
+        console.error('❌ Error conectando a la Base de Datos:', err.code);
+        console.error('   -> Verifica que XAMPP/MySQL esté encendido y la IP autorizada.');
+    } else {
+        console.log('✅ Conectado exitosamente a la Base de Datos: CardioFit');
+        connection.release(); // Siempre liberar la conexión tras la prueba
+    }
+});
 // ... (resto del código, app.listen, etc.)
 // Iniciar Servidor
 const PORT = process.env.PORT || 3000;

@@ -1,16 +1,11 @@
 // routes/scheduler.js
 const express = require('express');
 const router = express.Router();
-const mysql = require('mysql2');
-const axios = require('axios');
+const axios = require('axios'); // Si lo usas para webhooks
 
-// Conexión a Base de Datos
-const db = mysql.createConnection({
-    host: process.env.DB_HOST,
-    user: process.env.DB_USER,
-    password: process.env.DB_PASS,
-    database: process.env.DB_NAME
-});
+// IMPORTANTE: Usamos la conexión compartida (Pool)
+// Ya NO creamos una conexión manual aquí
+const db = require('../config/db');
 
 // URL del Webhook
 const WEBHOOK_URL = 'https://n8n.magnificapec.com/webhook/ff5e2454-2c1b-4542-be55-48408d97b4e8-panel';
