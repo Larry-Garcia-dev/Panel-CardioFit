@@ -147,4 +147,45 @@ router.delete('/cancel/:id', (req, res) => {
     });
 });
 
+// RUTA: Bloqueo Masivo de una hora específica
+router.post('/mass-lock', (req, res) => {
+    const { staffId, date, time } = req.body;
+
+    // 1. Intentar actualizar a TODOS los que estén en esa hora
+    const sqlUpdate = `
+        UPDATE Appointments 
+        SET is_locking = 1 
+        WHERE staff_id = ? AND appointment_date = ? AND start_time = ? AND status = 'confirmed'
+    `;
+
+    db.query(sqlUpdate, [staffId, date, time], (err, result) => {
+        if (err) {
+            console.error("Error bloqueando masivamente:", err);
+            return res.status(500).json({ success: false, message: 'Error en base de datos' });
+        }
+
+        // 2. Si se actualizaron filas (había gente), retornamos éxito
+        if (result.affectedRows > 0) {
+            return res.json({ success: true, updated: result.affectedRows });
+        } 
+        
+        // 3. Si NO había nadie (hora vacía), insertamos un bloqueo para cerrar la hora
+        else {
+            // Necesitamos un user_id obligatorio. Usamos el ID 1 (Admin) o el primer usuario que encontremos como "dummy".
+            // O idealmente, tienes un usuario "BLOQUEO" en tu BD. Aquí usaremos el ID 1 por defecto.
+            const sqlInsertLock = `
+                INSERT INTO Appointments (user_id, staff_id, appointment_date, start_time, end_time, status, is_locking)
+                VALUES (1, ?, ?, ?, ADDTIME(?, '01:00:00'), 'confirmed', 1)
+            `;
+            
+            db.query(sqlInsertLock, [staffId, date, time, time], (errInsert) => {
+                if (errInsert) {
+                    return res.status(500).json({ success: false, message: 'Error creando bloqueo vacío' });
+                }
+                return res.json({ success: true, updated: 0 });
+            });
+        }
+    });
+});
+
 module.exports = router;

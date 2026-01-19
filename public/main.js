@@ -176,7 +176,14 @@ function openUserModal(id) {
             document.getElementById('editEdad').value = user.EDAD || '';
             document.getElementById('editSexo').value = user.SEXO || 'M';
             document.getElementById('editEstado').value = user.ESTADO || 'ACTIVO';
+            // ... dentro de openUserModal, donde asignas los valores ...
 
+            // NUEVOS CAMPOS
+            document.getElementById('editPlanInfo').value = user.PLAN_INFO || '';
+            document.getElementById('editFechaPago').value = formatDateForInput(user.FECHA_PAGO);
+            document.getElementById('editNotas').value = user.NOTAS || '';
+
+            // ... resto del código ...
             // Fechas
             const fVencimiento = formatDateForInput(user.F_VENCIMIENTO); // Guardamos esto en variable
             document.getElementById('editNacimiento').value = formatDateForInput(user.F_N);
@@ -277,6 +284,9 @@ function saveUserChanges() {
         f_examen: document.getElementById('editFExamen').value,
         f_nutricion: document.getElementById('editFNutricion').value,
         f_deportiva: document.getElementById('editFDeportiva').value,
+        plan_info: document.getElementById('editPlanInfo').value,
+        fecha_pago: document.getElementById('editFechaPago').value,
+        notas: document.getElementById('editNotas').value,
         plan: planFinal
     };
 
@@ -477,11 +487,11 @@ function bookAppointment() {
         return;
     }
 
-    const data = { 
-        userId, 
+    const data = {
+        userId,
         staffId, // Enviamos el ID específico al backend
-        fecha: date, 
-        hora: time 
+        fecha: date,
+        hora: time
     };
 
     fetch('/api/appointments', {
@@ -489,23 +499,23 @@ function bookAppointment() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data)
     })
-    .then(res => res.json())
-    .then(response => {
-        if (response.success) {
-            Swal.fire({
-                title: '¡Cita Agendada!',
-                text: response.message,
-                icon: 'success',
-                confirmButtonColor: '#2563eb'
-            });
-            document.getElementById('apptDate').value = '';
-            document.getElementById('apptTime').value = '';
-            document.getElementById('apptStaff').value = '';
-            loadAgenda();
-        } else {
-            Swal.fire('No se pudo agendar', response.message, 'error');
-        }
-    });
+        .then(res => res.json())
+        .then(response => {
+            if (response.success) {
+                Swal.fire({
+                    title: '¡Cita Agendada!',
+                    text: response.message,
+                    icon: 'success',
+                    confirmButtonColor: '#2563eb'
+                });
+                document.getElementById('apptDate').value = '';
+                document.getElementById('apptTime').value = '';
+                document.getElementById('apptStaff').value = '';
+                loadAgenda();
+            } else {
+                Swal.fire('No se pudo agendar', response.message, 'error');
+            }
+        });
 }
 
 // ==========================================

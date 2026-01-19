@@ -92,6 +92,7 @@ function renderGrid() {
                 headerText = "FULL";
                 headerClass = "text-red-600 font-bold";
             } else {
+                 
                 btnAdd = `
                     <button onclick="openBookingModal(${staff.id}, '${staff.name}', '${time}', ${count})" 
                             class="bg-blue-600 text-white rounded w-6 h-6 flex items-center justify-center font-bold text-lg hover:bg-blue-700 transition shadow hover:scale-110" 
@@ -99,6 +100,14 @@ function renderGrid() {
                         +
                     </button>
                 `;
+                 btnAdd += `
+                    <button onclick="massLockSlot(${staff.id}, '${time}')" 
+                            class="ml-1 bg-orange-500 text-white rounded w-6 h-6 flex items-center justify-center font-bold text-xs hover:bg-orange-600 transition shadow hover:scale-110" 
+                            title="Bloquear Hora Completa">
+                        🔒
+                    </button>
+                `;
+              
             }
 
             html += `
@@ -262,4 +271,40 @@ function formatTime(timeStr) {
     const ampm = hour >= 12 ? 'PM' : 'AM';
     const hour12 = hour % 12 || 12;
     return `${hour12}:${m} ${ampm}`;
+}
+
+// Función para bloquear la hora completa (pone is_locking=1 a todos)
+function massLockSlot(staffId, time) {
+    const date = document.getElementById('currentDate').value;
+
+    Swal.fire({
+        title: '¿Bloquear esta hora?',
+        text: "Se pondrá candado a todos los usuarios agendados y se cerrará el cupo.",
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#f97316', // Naranja
+        cancelButtonColor: '#d33',
+        confirmButtonText: 'Sí, bloquear todo'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            fetch('/api/scheduler/mass-lock', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ staffId, date, time })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    const msg = data.updated > 0 
+                        ? `Se bloquearon ${data.updated} usuarios existentes.` 
+                        : 'Se creó un bloqueo en el horario vacío.';
+                    
+                    Swal.fire('Bloqueado', msg, 'success');
+                    loadScheduler(); // Recargar la grilla
+                } else {
+                    Swal.fire('Error', data.message, 'error');
+                }
+            });
+        }
+    });
 }

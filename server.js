@@ -8,7 +8,7 @@ const axios = require('axios');
 // IMPORTAR CONEXIÓN COMPARTIDA (POOL)
 // Esta línea carga la configuración de config/db.js
 // Ya no necesitamos 'mysql2' ni crear conexiones aquí.
-const db = require('./config/db'); 
+const db = require('./config/db');
 
 // IMPORTAR RUTAS
 const staffRoutes = require('./routes/staff');
@@ -21,7 +21,7 @@ const app = express();
 // ==========================================
 // 1. MIDDLEWARE
 // ==========================================
-app.use(express.json()); 
+app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 app.use(session({
@@ -75,8 +75,8 @@ app.use('/api/n8n', n8nRoutes);
 app.post('/api/register', (req, res) => {
     const { nombre, email, password, secretCode } = req.body;
 
-     // A. AUTENTICACIÓN DE ADMINISTRADOR
-    const CODIGO_SECRETO_REQUERIDO = 'Mafexpress2026!'; 
+    // A. AUTENTICACIÓN DE ADMINISTRADOR
+    const CODIGO_SECRETO_REQUERIDO = 'Mafexpress2026!';
 
     if (secretCode !== CODIGO_SECRETO_REQUERIDO) {
         return res.json({ success: false, message: 'Código de seguridad inválido. No tienes permiso para crear admins.' });
@@ -150,11 +150,11 @@ app.post('/api/login', (req, res) => {
 // Modificar check-session para devolver el rol y el ID
 app.get('/api/check-session', (req, res) => {
     if (req.session.loggedin) {
-        res.json({ 
-            loggedin: true, 
-            user: req.session.username, 
+        res.json({
+            loggedin: true,
+            user: req.session.username,
             role: req.session.role,
-            id: req.session.userId 
+            id: req.session.userId
         });
     } else {
         res.json({ loggedin: false });
@@ -227,7 +227,8 @@ app.put('/api/Users/:id', (req, res) => {
     const {
         usuario, cedula, correo, telefono, plan,
         f_ingreso, f_vencimiento, estado, f_nacimiento,
-        edad, sexo, f_examen, f_nutricion, f_deportiva, direccion
+        edad, sexo, f_examen, f_nutricion, f_deportiva, direccion,
+        plan_info, fecha_pago, notas
     } = req.body;
 
     // DEBUG: Ver en la terminal qué está llegando
@@ -239,27 +240,21 @@ app.put('/api/Users/:id', (req, res) => {
             USUARIO = ?, N_CEDULA = ?, CORREO_ELECTRONICO = ?, TELEFONO = ?, PLAN = ?,
             F_INGRESO = ?, F_VENCIMIENTO = ?, ESTADO = ?, F_N = ?, 
             EDAD = ?, SEXO = ?, F_EXAMEN_LABORATORIO = ?, 
-            F_CITA_NUTRICION = ?, F_CITA_MED_DEPORTIVA = ?, DIRECCION_O_BARRIO = ?
+            F_CITA_NUTRICION = ?, F_CITA_MED_DEPORTIVA = ?, DIRECCION_O_BARRIO = ?,
+            -- AGREGAR LAS COLUMNAS NUEVAS A LA CONSULTA SQL:
+            PLAN_INFO = ?, FECHA_PAGO = ?, NOTAS = ?
         WHERE id = ?
     `;
 
     // Mapeo exacto de variables a columnas
     const values = [
-        usuario,
-        cedula,
-        correo,
-        telefono,
-        plan,
-        clean(f_ingreso),
-        clean(f_vencimiento),
-        estado,
-        clean(f_nacimiento),
-        clean(edad),
-        sexo,
-        clean(f_examen),
-        clean(f_nutricion),
-        clean(f_deportiva),
-        direccion,
+        usuario, cedula, correo, telefono, plan,
+        clean(f_ingreso), clean(f_vencimiento), estado, clean(f_nacimiento),
+        clean(edad), sexo, clean(f_examen), clean(f_nutricion), clean(f_deportiva), direccion,
+        // AGREGAR LOS VALORES NUEVOS AL ARRAY (USANDO clean PARA LA FECHA):
+        plan_info,
+        clean(fecha_pago),
+        notas,
         id
     ];
 
@@ -516,15 +511,15 @@ app.post('/api/Users/create', (req, res) => {
 // ==========================================
 app.get('/api/appointments/kiosk-day', (req, res) => {
     const now = new Date();
-    
+
     // Hora actual del sistema (0-23) para que el frontend sepa cuál enfocar
-    const currentHour = now.getHours(); 
+    const currentHour = now.getHours();
     const currentMinutes = now.getMinutes();
 
-    const displayTime = now.toLocaleTimeString('es-CO', { 
-        hour: '2-digit', 
+    const displayTime = now.toLocaleTimeString('es-CO', {
+        hour: '2-digit',
         minute: '2-digit',
-        hour12: true 
+        hour12: true
     });
 
     // Consulta: TODAS las citas confirmadas DE HOY ordenadas por hora

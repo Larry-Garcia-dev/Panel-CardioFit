@@ -162,6 +162,11 @@
                             <option value="Otro">Otro</option>
                         </select>
                     </div>
+                    
+                    <div>
+                        <label class="label-form">Fecha de Pago</label>
+                        <input type="date" id="editFechaPago" class="input-form">
+                    </div>
                 </div>
 
                 <h3 class="text-blue-800 font-bold border-b pb-1 mb-4">Información de Contacto</h3>
@@ -216,6 +221,11 @@
                             <option value="CONGELADO">CONGELADO</option>
                             <option value="VENCIDO">VENCIDO</option>
                         </select>
+                    </div>
+                     <div class="md:col-span-2">
+                        <label class="label-form">Descripción del Plan (Texto)</label>
+                        <input type="text" id="editPlanInfo" maxlength="250" class="input-form"
+                            placeholder="Detalle del plan (Máx 250 caracteres)">
                     </div>
                 </div>
                 <div id="infoCongelamiento"
@@ -281,7 +291,7 @@
                         </p>
                     </div>
                 </div>
-                <div class="mt-6 border-t pt-4">
+                <!-- <div class="mt-6 border-t pt-4">
                     <h3 class="text-blue-800 font-bold mb-4 flex items-center gap-2">
                         📅 Agendar Nueva Cita
                     </h3>
@@ -329,6 +339,19 @@
                             </svg>
                             Agendar
                         </button>
+                    </div>
+                </div>
+                <h3 class="text-blue-800 font-bold border-b pb-1 mb-4 mt-4">Información Adicional y Pagos</h3> -->
+                <div
+                    class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6 bg-gray-50 p-4 rounded-lg border border-gray-200">
+
+                   
+
+
+                    <div class="md:col-span-2">
+                        <label class="label-form">Notas / Observaciones</label>
+                        <textarea id="editNotas" rows="4" class="input-form resize-none"
+                            placeholder="Notas sobre el usuario (Más de 300 caracteres permitidos)..."></textarea>
                     </div>
                 </div>
 
