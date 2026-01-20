@@ -7,6 +7,8 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+        <link rel="shortcut icon" href="logo.jpg" type="image/x-icon">
+
     <style>
         body { font-family: 'Inter', sans-serif; background-color: #f8fafc; touch-action: manipulation; }
         .tap-highlight-transparent { -webkit-tap-highlight-color: transparent; }
@@ -64,17 +66,17 @@
                     <h2 class="text-2xl font-bold text-gray-900">Hola, <span id="userName" class="text-blue-600">Usuario</span></h2>
                     <p class="text-gray-500 text-sm">¿Qué servicio deseas hoy?</p>
                 </div>
-                <div class="space-y-3">
-                    
+
+                <div id="menuExistingUsers" class="space-y-3 hidden">
                     <button onclick="selectService('Entrenador', 'Entrenamiento Grupal')" class="w-full text-left border-2 border-gray-100 p-5 rounded-2xl font-bold text-gray-700 hover:border-blue-500 transition flex items-center gap-4 active:scale-95">
-                        <span class="text-2xl">💪</span> Entrenamiento Grupal
+                        <span class="text-2xl">💪</span> Entrenamiento
                     </button>
 
                     <button onclick="selectService('EntrenamientoPersonalizado', 'Entrenamiento Personalizado')" class="w-full text-left border-2 border-amber-100 bg-amber-50 p-5 rounded-2xl font-bold text-amber-800 hover:border-amber-500 transition flex items-center gap-4 active:scale-95 relative overflow-hidden">
                         <span class="text-2xl">👑</span> 
                         <div>
                             <span class="block">Entrenamiento Personalizado</span>
-                            <span class="text-[10px] text-amber-600 uppercase tracking-wider font-normal">Agenda Exclusiva</span>
+                            <span class="text-[10px] text-amber-600 uppercase tracking-wider font-normal">Agenda Personalizada</span>
                         </div>
                     </button>
 
@@ -90,6 +92,25 @@
                         <span class="text-2xl">✨</span> Otros Servicios
                     </button>
                 </div>
+
+                <div id="menuNewUsers" class="space-y-3 hidden">
+                    <div class="bg-green-50 text-green-800 p-4 rounded-xl text-sm mb-4">
+                        ¡Bienvenido! Estas son tus opciones de inicio:
+                    </div>
+
+                    <button onclick="selectService('Entrenador', 'Clase de Cortesía')" class="w-full text-left border-2 border-green-100 bg-green-50 p-5 rounded-2xl font-bold text-green-800 hover:border-green-500 transition flex items-center gap-4 active:scale-95">
+                        <span class="text-2xl">🎁</span> Clase de Cortesía
+                    </button>
+
+                    <button onclick="selectService('Fisioterapia', 'Análisis Biomecánico')" class="w-full text-left border-2 border-blue-100 bg-blue-50 p-5 rounded-2xl font-bold text-blue-800 hover:border-blue-500 transition flex items-center gap-4 active:scale-95">
+                        <span class="text-2xl">🔬</span> Análisis Biomecánico
+                    </button>
+
+                    <button onclick="showOtherServices()" class="w-full text-left border-2 border-purple-100 bg-purple-50 p-5 rounded-2xl font-bold text-purple-800 hover:border-purple-500 transition flex items-center gap-4 active:scale-95">
+                        <span class="text-2xl">✨</span> Otros Servicios
+                    </button>
+                </div>
+
             </div>
 
             <div id="stepOtherList" class="hidden slide-up">
