@@ -2,7 +2,6 @@
 
 let selectedDates = new Set(); 
 
-// LISTA DE OTROS SERVICIOS (Común para ambos)
 const otherServicesList = [
     { name: "Baño Terapéutico", role: "Spa" },
     { name: "Masaje Terapéutico/Relajante", role: "Spa" },
@@ -20,7 +19,6 @@ const otherServicesList = [
 ];
 
 document.addEventListener('DOMContentLoaded', () => {
-    // 1. Decodificar la URL para evitar errores con el símbolo '+'
     const rawPath = window.location.pathname.substring(1);
     const phone = decodeURIComponent(rawPath); 
 
@@ -35,7 +33,6 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function identifyUser(phone) {
-    // Codificamos de nuevo solo para el transporte HTTP seguro
     fetch(`/api/public/identify/${encodeURIComponent(phone)}`)
         .then(res => {
             if(!res.ok) throw new Error("Error en servidor");
@@ -45,13 +42,10 @@ function identifyUser(phone) {
             document.getElementById('loader').classList.add('hidden');
             
             if(data.found) {
-                // USUARIO ANTIGUO -> Menú Normal
                 document.getElementById('gUserId').value = data.user.id;
                 document.getElementById('userName').innerText = data.user.USUARIO.split(' ')[0];
                 showMenu('existing'); 
             } else {
-                // USUARIO NUEVO -> Formulario -> Menú Nuevo
-                // El backend nos devuelve el número limpio en 'phoneClean'
                 document.getElementById('regPhone').value = data.phoneClean || phone.replace(/\D/g, ''); 
                 showStep('stepRegister');
             }
@@ -63,7 +57,6 @@ function identifyUser(phone) {
         });
 }
 
-// REGISTRO DE NUEVO USUARIO
 document.getElementById('regForm').addEventListener('submit', (e) => {
     e.preventDefault();
     const btn = e.target.querySelector('button');
@@ -74,7 +67,7 @@ document.getElementById('regForm').addEventListener('submit', (e) => {
         nombre: document.getElementById('regName').value,
         cedula: document.getElementById('regCedula').value,
         correo: document.getElementById('regEmail').value,
-        telefono: document.getElementById('regPhone').value // Ya viene limpio del paso anterior
+        telefono: document.getElementById('regPhone').value
     };
 
     fetch('/api/public/quick-register', { 
@@ -87,7 +80,6 @@ document.getElementById('regForm').addEventListener('submit', (e) => {
         if(res.success) {
             document.getElementById('gUserId').value = res.userId;
             document.getElementById('userName').innerText = data.nombre.split(' ')[0];
-            // MOSTRAR MENÚ PARA NUEVOS
             showMenu('new');
         } else {
             Swal.fire('Error', 'No se pudo registrar. Intenta nuevamente.', 'error');
@@ -101,7 +93,6 @@ document.getElementById('regForm').addEventListener('submit', (e) => {
     });
 });
 
-// CONTROL DE MENÚS (NUEVO vs ANTIGUO)
 function showMenu(type) {
     const menuExisting = document.getElementById('menuExistingUsers');
     const menuNew = document.getElementById('menuNewUsers');
@@ -116,7 +107,98 @@ function showMenu(type) {
     showStep('stepService');
 }
 
-// LÓGICA DE SERVICIOS
+// ----------------------------------------------------
+// MÓDULO MIS CITAS (CONSULTA Y CANCELACIÓN)
+// ----------------------------------------------------
+function showMyAppointments() {
+    showStep('stepMyAppointments');
+    const container = document.getElementById('appointmentsListContainer');
+    const loader = document.getElementById('appointmentsLoader');
+    const userId = document.getElementById('gUserId').value;
+
+    container.innerHTML = '';
+    loader.classList.remove('hidden');
+
+    fetch(`/api/public/my-appointments/${userId}`)
+        .then(res => res.json())
+        .then(data => {
+            loader.classList.add('hidden');
+            if (data.success && data.appointments.length > 0) {
+                renderAppointments(data.appointments);
+            } else {
+                container.innerHTML = `
+                    <div class="text-center p-8 bg-gray-50 rounded-xl border border-gray-100">
+                        <p class="text-gray-400 font-bold mb-2">No tienes citas próximas</p>
+                        <p class="text-xs text-gray-400">Tus agendamientos confirmados aparecerán aquí.</p>
+                    </div>
+                `;
+            }
+        })
+        .catch(err => {
+            loader.classList.add('hidden');
+            container.innerHTML = `<p class="text-center text-red-500">Error cargando citas.</p>`;
+        });
+}
+
+function renderAppointments(appointments) {
+    const container = document.getElementById('appointmentsListContainer');
+    container.innerHTML = '';
+
+    appointments.forEach(appt => {
+        const dateObj = new Date(appt.appointment_date);
+        const day = dateObj.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'short' });
+        
+        const [h, m] = appt.start_time.split(':');
+        const hourInt = parseInt(h);
+        const ampm = hourInt >= 12 ? 'PM' : 'AM';
+        const hour12 = hourInt % 12 || 12;
+        const timeStr = `${hour12}:${m} ${ampm}`;
+
+        const card = document.createElement('div');
+        card.className = "bg-white border border-gray-200 p-4 rounded-xl shadow-sm flex justify-between items-center";
+        
+        card.innerHTML = `
+            <div>
+                <p class="font-bold text-gray-800 capitalize">${day}</p>
+                <p class="text-2xl font-black text-blue-600">${timeStr}</p>
+                <p class="text-xs text-gray-500 mt-1 uppercase tracking-wider">${appt.staff_name}</p>
+            </div>
+            <button onclick="cancelMyAppointment(${appt.id})" class="text-red-500 hover:bg-red-50 p-2 rounded-full transition" title="Cancelar Cita">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+            </button>
+        `;
+        container.appendChild(card);
+    });
+}
+
+function cancelMyAppointment(id) {
+    Swal.fire({
+        title: '¿Cancelar Cita?',
+        text: "Esta acción liberará el espacio inmediatamente.",
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#d33',
+        cancelButtonColor: '#000',
+        confirmButtonText: 'Sí, cancelar'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            fetch(`/api/public/cancel-appointment/${id}`, { method: 'DELETE' })
+            .then(res => res.json())
+            .then(data => {
+                if(data.success) {
+                    Swal.fire('Cancelada', 'Tu cita ha sido eliminada.', 'success');
+                    showMyAppointments(); 
+                } else {
+                    Swal.fire('Error', 'No se pudo cancelar la cita.', 'error');
+                }
+            });
+        }
+    });
+}
+
+// ----------------------------------------------------
+// SELECCIÓN DE SERVICIOS
+// ----------------------------------------------------
 function renderOtherServices() {
     const container = document.getElementById('otherServicesContainer');
     container.innerHTML = '';
@@ -134,7 +216,6 @@ function showOtherServices() {
 }
 
 function selectService(dbRole, serviceName) {
-    // 1. ALERTA PARA CLASE DE CORTESÍA
     if (serviceName === "Clase de Cortesía") {
         Swal.fire({
             title: '⚠️ Información Importante',
@@ -159,7 +240,6 @@ function proceedSelection(dbRole, serviceName) {
     loadServiceHours(dbRole); 
 }
 
-// CARGA DE HORAS
 function loadServiceHours(role) {
     const grid = document.getElementById('timeGrid');
     const loader = document.getElementById('timeLoader');
@@ -276,18 +356,20 @@ function updateFloatingButton() {
     else floatBtn.classList.add('hidden');
 }
 
+// ----------------------------------------------------
+// CONFIRMACIÓN CON DETALLE DE STAFF
+// ----------------------------------------------------
 function confirmBatchBooking() {
     const datesArray = Array.from(selectedDates);
     const serviceName = document.getElementById('gServiceName').value;
     
-    // MENSAJE DE CONFIRMACIÓN DIFERENTE SI ES CORTESÍA
-    let textSwal = 'Se agendarán inmediatamente.';
+    let textSwal = 'Se intentarán agendar las fechas seleccionadas.';
     if(serviceName === "Clase de Cortesía") {
-        textSwal = 'Recuerda llegar 30 min antes para tu tamizaje. ¿Confirmar?';
+        textSwal = 'Recuerda llegar 30 min antes. ¿Confirmar reservas?';
     }
 
     Swal.fire({
-        title: `¿Confirmar ${datesArray.length} citas?`,
+        title: `Procesando ${datesArray.length} fechas`,
         text: textSwal,
         icon: 'question',
         showCancelButton: true,
@@ -296,7 +378,7 @@ function confirmBatchBooking() {
         cancelButtonText: 'Cancelar'
     }).then((res) => {
         if(res.isConfirmed) {
-            Swal.fire({ title: 'Procesando...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+            Swal.fire({ title: 'Verificando disponibilidad...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
             
             fetch('/api/public/confirm-booking-batch', {
                 method: 'POST',
@@ -312,12 +394,44 @@ function confirmBatchBooking() {
             .then(r => r.json())
             .then(resp => {
                 if(resp.success) {
+                    // CONSTRUIR REPORTE HTML PARA EL USUARIO
+                    let htmlMsg = '<div class="text-left text-sm">';
+                    
+                    // 1. Mostrar Exitosas (AQUÍ ESTÁ EL CAMBIO)
+                    if (resp.results.booked.length > 0) {
+                        htmlMsg += `<div class="mb-3"><h4 class="font-bold text-green-600">✅ Reservas Exitosas:</h4><ul class="list-disc pl-5">`;
+                        resp.results.booked.forEach(item => {
+                            // SE AGREGA EL NOMBRE DEL STAFF
+                            htmlMsg += `<li>${item.date} a las ${item.time} con <strong>${item.staff}</strong></li>`;
+                        });
+                        htmlMsg += `</ul></div>`;
+                    }
+
+                    // 2. Mostrar Fallidas (Agenda Llena)
+                    if (resp.results.failed.length > 0) {
+                        htmlMsg += `<div class="mb-3"><h4 class="font-bold text-red-600">⛔ No agendadas (Agenda Llena):</h4><ul class="list-disc pl-5 text-gray-700">`;
+                        resp.results.failed.forEach(item => {
+                            htmlMsg += `<li>${item.date} a las ${item.time}</li>`;
+                        });
+                        htmlMsg += `</ul><p class="mt-2 font-bold text-red-500">Por favor selecciona otra hora para estos días.</p></div>`;
+                    }
+                    htmlMsg += '</div>';
+
+                    // Determinar el icono y título según el resultado
+                    const isPartial = resp.results.failed.length > 0;
+                    const finalIcon = isPartial ? 'warning' : 'success';
+                    const finalTitle = isPartial ? 'Proceso Completado con Alertas' : '¡Todo Agendado!';
+
                     Swal.fire({
-                        icon: 'success',
-                        title: '¡Agenda Exitosa!',
-                        text: `Has reservado ${resp.booked} citas.`,
-                        confirmButtonText: 'Finalizar'
-                    }).then(() => window.location.reload());
+                        icon: finalIcon,
+                        title: finalTitle,
+                        html: htmlMsg,
+                        confirmButtonText: 'Entendido',
+                        confirmButtonColor: '#000'
+                    }).then(() => {
+                        window.location.reload();
+                    });
+
                 } else {
                     Swal.fire('Error', resp.message || 'Error desconocido', 'error');
                 }
@@ -331,7 +445,7 @@ function confirmBatchBooking() {
 }
 
 function showStep(id) {
-    ['stepRegister', 'stepService', 'stepOtherList', 'stepTime', 'stepDay'].forEach(s => document.getElementById(s).classList.add('hidden'));
+    ['stepRegister', 'stepService', 'stepOtherList', 'stepTime', 'stepDay', 'stepMyAppointments'].forEach(s => document.getElementById(s).classList.add('hidden'));
     document.getElementById('floatingConfirm').classList.add('hidden'); 
     document.getElementById(id).classList.remove('hidden');
 }

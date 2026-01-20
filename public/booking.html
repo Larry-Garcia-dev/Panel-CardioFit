@@ -7,8 +7,6 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
-        <link rel="shortcut icon" href="logo.jpg" type="image/x-icon">
-
     <style>
         body { font-family: 'Inter', sans-serif; background-color: #f8fafc; touch-action: manipulation; }
         .tap-highlight-transparent { -webkit-tap-highlight-color: transparent; }
@@ -56,27 +54,34 @@
                     <input type="hidden" id="regPhone">
                     <input type="text" id="regName" class="w-full bg-gray-50 border p-4 rounded-xl font-bold" placeholder="Nombre Completo" required>
                     <input type="tel" id="regCedula" class="w-full bg-gray-50 border p-4 rounded-xl font-bold" placeholder="Cédula" required>
-                    <input type="email" id="regEmail" class="w-full bg-gray-50 border p-4 rounded-xl font-bold" placeholder="Correo Electrónico" required>
+                    <input type="email" id="regEmail" class="w-full bg-gray-50 border p-4 rounded-xl font-bold" placeholder="Correo (Opcional)">
                     <button type="submit" class="w-full bg-black text-white py-4 rounded-xl font-bold text-lg shadow-lg">Continuar</button>
                 </form>
             </div>
 
             <div id="stepService" class="hidden slide-up">
-                <div class="mb-6">
-                    <h2 class="text-2xl font-bold text-gray-900">Hola, <span id="userName" class="text-blue-600">Usuario</span></h2>
-                    <p class="text-gray-500 text-sm">¿Qué servicio deseas hoy?</p>
+                <div class="mb-6 flex justify-between items-center">
+                    <div>
+                        <h2 class="text-2xl font-bold text-gray-900">Hola, <span id="userName" class="text-blue-600">Usuario</span></h2>
+                        <p class="text-gray-500 text-sm">¿Qué servicio deseas hoy?</p>
+                    </div>
                 </div>
 
                 <div id="menuExistingUsers" class="space-y-3 hidden">
+                    
+                    <button onclick="showMyAppointments()" class="w-full text-center bg-blue-50 border-2 border-blue-100 p-3 rounded-xl font-bold text-blue-700 hover:bg-blue-100 transition flex items-center justify-center gap-2 mb-4 shadow-sm">
+                        <span>📅</span> Ver mis Citas Pendientes
+                    </button>
+
                     <button onclick="selectService('Entrenador', 'Entrenamiento Grupal')" class="w-full text-left border-2 border-gray-100 p-5 rounded-2xl font-bold text-gray-700 hover:border-blue-500 transition flex items-center gap-4 active:scale-95">
-                        <span class="text-2xl">💪</span> Entrenamiento
+                        <span class="text-2xl">💪</span> Entrenamiento Grupal
                     </button>
 
                     <button onclick="selectService('EntrenamientoPersonalizado', 'Entrenamiento Personalizado')" class="w-full text-left border-2 border-amber-100 bg-amber-50 p-5 rounded-2xl font-bold text-amber-800 hover:border-amber-500 transition flex items-center gap-4 active:scale-95 relative overflow-hidden">
                         <span class="text-2xl">👑</span> 
                         <div>
                             <span class="block">Entrenamiento Personalizado</span>
-                            <span class="text-[10px] text-amber-600 uppercase tracking-wider font-normal">Agenda Personalizada</span>
+                            <span class="text-[10px] text-amber-600 uppercase tracking-wider font-normal">Agenda Exclusiva</span>
                         </div>
                     </button>
 
@@ -117,6 +122,15 @@
                 <button onclick="showStep('stepService')" class="text-gray-400 text-sm font-bold mb-4">← Volver</button>
                 <h2 class="text-xl font-bold mb-4">Servicios Especiales</h2>
                 <div class="space-y-2" id="otherServicesContainer"></div>
+            </div>
+
+            <div id="stepMyAppointments" class="hidden slide-up">
+                <button onclick="showStep('stepService')" class="text-gray-400 text-sm font-bold mb-4">← Volver</button>
+                <h2 class="text-xl font-bold mb-4 text-blue-900">Mis Próximas Citas</h2>
+                <div id="appointmentsLoader" class="text-center py-6 hidden">
+                    <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+                </div>
+                <div id="appointmentsListContainer" class="space-y-3 pb-20"></div>
             </div>
 
             <div id="stepTime" class="hidden slide-up">
