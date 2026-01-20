@@ -15,7 +15,7 @@ const staffRoutes = require('./routes/staff');
 const schedulerRoutes = require('./routes/scheduler');
 const membershipRoutes = require('./routes/memberships');
 const n8nRoutes = require('./api/external-scheduler');
-
+const publicRoutes = require('./routes/public'); 
 const app = express();
 
 // ==========================================
@@ -29,6 +29,19 @@ app.use(session({
     resave: false,
     saveUninitialized: true
 }));
+
+
+app.use('/api/public', publicRoutes);
+
+app.get('/:phone', (req, res, next) => {
+    const phone = req.params.phone;
+    
+    // Si parece un archivo (tiene punto) o es una ruta de sistema, saltar
+    if (phone.includes('.') || phone.startsWith('api') || phone === 'favicon.ico') return next();
+
+    // Servir la nueva vista móvil
+    res.sendFile(path.join(__dirname, 'public', 'booking.html'));
+});
 
 // ==========================================
 // 2. MIDDLEWARE DE SEGURIDAD
@@ -64,8 +77,6 @@ app.use('/api/staff-management', staffRoutes);
 app.use('/api/memberships', membershipRoutes);
 app.use('/api/scheduler', schedulerRoutes);
 app.use('/api/n8n', n8nRoutes);
-
-
 
 
 // --- RUTAS DE API (BACKEND) ---
