@@ -5,8 +5,7 @@
     <title>Control de Vencimientos - CardioFit</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-        <link rel="shortcut icon" href="logo.jpg" type="image/x-icon">
-
+    <link rel="shortcut icon" href="logo.jpg" type="image/x-icon">
 </head>
 <body class="bg-gray-100 font-sans h-screen flex flex-col">
 
@@ -22,12 +21,12 @@
     <div class="flex-1 container mx-auto p-6 overflow-y-auto">
         
         <div class="mb-10">
-            <h2 class="text-2xl font-bold text-red-600 mb-4 flex items-center gap-2">
+            <h2 class="text-2xl font-bold text-orange-600 mb-4 flex items-center gap-2">
                 ⚠️ Membresías por Vencer (Próximos 10 días)
             </h2>
-            <div class="bg-white rounded-xl shadow-lg overflow-hidden border border-red-100">
+            <div class="bg-white rounded-xl shadow-lg overflow-hidden border border-orange-100">
                 <table class="w-full text-left border-collapse">
-                    <thead class="bg-red-50 text-red-800 uppercase font-bold text-xs">
+                    <thead class="bg-orange-50 text-orange-800 uppercase font-bold text-xs">
                         <tr>
                             <th class="p-4">Días</th>
                             <th class="p-4">Vencimiento</th>
@@ -36,14 +35,33 @@
                             <th class="p-4 text-center">Gestión</th>
                         </tr>
                     </thead>
-                    <tbody id="expiringTableBody" class="divide-y divide-gray-100">
-                        </tbody>
+                    <tbody id="expiringTableBody" class="divide-y divide-gray-100"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="mb-10">
+            <h2 class="text-2xl font-bold text-gray-700 mb-4 flex items-center gap-2">
+                🚫 Membresías Vencidas (Inactivos)
+            </h2>
+            <div class="bg-white rounded-xl shadow-lg overflow-hidden border border-gray-300">
+                <table class="w-full text-left border-collapse">
+                    <thead class="bg-gray-200 text-gray-700 uppercase font-bold text-xs">
+                        <tr>
+                            <th class="p-4">Tiempo Vencido</th>
+                            <th class="p-4">Fecha Vencimiento</th>
+                            <th class="p-4">Cliente</th>
+                            <th class="p-4">Plan</th>
+                            <th class="p-4 text-center">Gestión</th>
+                        </tr>
+                    </thead>
+                    <tbody id="expiredTableBody" class="divide-y divide-gray-100"></tbody>
                 </table>
             </div>
         </div>
 
         <div class="text-center mb-6">
-            <button onclick="toggleAllUsers()" class="bg-gray-800 text-white px-6 py-3 rounded-lg font-bold shadow hover:bg-gray-900 transition flex items-center gap-2 mx-auto">
+            <button onclick="toggleAllUsers()" class="bg-blue-800 text-white px-6 py-3 rounded-lg font-bold shadow hover:bg-blue-900 transition flex items-center gap-2 mx-auto">
                 🔍 Ver Lista Completa de Usuarios
             </button>
         </div>
@@ -62,8 +80,7 @@
                                 <th class="p-3 text-center">Acción</th>
                             </tr>
                         </thead>
-                        <tbody id="allUsersTableBody" class="divide-y divide-gray-100">
-                            </tbody>
+                        <tbody id="allUsersTableBody" class="divide-y divide-gray-100"></tbody>
                     </table>
                 </div>
             </div>
@@ -110,8 +127,7 @@
                     <input id="editNacimiento"><input id="editEdad"><input id="editSexo">
                     <input id="editFIngreso"><input id="editFExamen"><input id="editFNutricion">
                     <textarea id="editFDeportiva"></textarea>
-                    <input id="freezeStart"><input id="freezeEnd">
-                    <div id="infoCongelamiento"><input id="viewInicioCongelamiento"><input id="viewFinCongelamiento"></div>
+                    <input id="editPlanInfo"><input id="editFechaPago"><textarea id="editNotas"></textarea>
                 </div>
 
                 <div class="flex justify-end gap-3 mt-6">

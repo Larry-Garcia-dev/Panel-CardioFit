@@ -82,7 +82,6 @@ app.use('/api/n8n', n8nRoutes);
 // --- RUTAS DE API (BACKEND) ---
 
 // 1. Registro de Administrador
-// 1. Registro de Administrador
 app.post('/api/register', (req, res) => {
     const { nombre, email, password, secretCode } = req.body;
 
@@ -186,7 +185,6 @@ app.get('/logout', (req, res) => {
     req.session.destroy();
     res.redirect('/login.html');
 });
-// --- NUEVAS RUTAS FASE 2 ---
 
 // 5. Buscador Inteligente
 app.get('/api/Users/search', (req, res) => {
@@ -459,7 +457,22 @@ cron.schedule('1 0 * * *', () => {
         }
     });
 });
-
+// 2. VENCIMIENTO AUTOMÁTICO (00:05 AM) - ¡NUEVA FUNCIÓN!
+cron.schedule('5 0 * * *', () => {
+    console.log('🔄 Cron: Verificando membresías vencidas...');
+    // Busca usuarios ACTIVOS cuya fecha de vencimiento sea MENOR a hoy (ayer o antes)
+    const sql = `UPDATE Users SET ESTADO = 'VENCIDO' WHERE ESTADO = 'ACTIVO' AND F_VENCIMIENTO < CURDATE()`;
+    
+    db.query(sql, (err, result) => {
+        if (err) {
+            console.error('❌ Error actualizando vencidos:', err);
+        } else if (result.changedRows > 0) {
+            console.log(`✅ Sistema: Se marcaron ${result.changedRows} usuarios como VENCIDO.`);
+        } else {
+            console.log('ℹ️ No hay nuevos vencimientos hoy.');
+        }
+    });
+});
 // ==========================================
 // 11. CREAR NUEVO USUARIO (CON VENCIMIENTO)
 // ==========================================

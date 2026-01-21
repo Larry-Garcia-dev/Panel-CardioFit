@@ -4,9 +4,11 @@ const router = express.Router();
 const axios = require('axios');
 const db = require('../config/db');
 
-const WEBHOOK_URL = 'https://n8n.magnificapec.com/webhook/7c66633b-0a0c-4d98-9d2c-7979ac835823-agenda-automatica';
+// URLs de Webhooks
+const DEFAULT_WEBHOOK_URL = 'https://n8n.magnificapec.com/webhook/7c66633b-0a0c-4d98-9d2c-7979ac835823-agenda-automatica';
+const BIOMECANICO_WEBHOOK_URL = 'https://n8n.magnificapec.com/webhook/2e2d8791-6fc2-4c50-bf4b-e3369a8198f3-analisis-biomecanico';
 
-// Utilidad Promesas
+// Utilidad Promesas para la base de datos
 const query = (sql, params) => new Promise((resolve, reject) => {
     db.query(sql, params, (err, res) => err ? reject(err) : resolve(res));
 });
@@ -16,18 +18,38 @@ const getColombiaDate = () => {
     return new Date(new Date().toLocaleString("en-US", { timeZone: "America/Bogota" }));
 };
 
-// 1. IDENTIFICAR (Limpieza de +57 en búsqueda)
+// =========================================================================
+// 1. IDENTIFICAR USUARIO (CONTEO DE CITAS, ESTADO Y PLAN)
+// =========================================================================
 router.get('/identify/:phone', async (req, res) => {
     try {
         let input = req.params.phone.replace(/\D/g, ''); 
-        
         let phoneClean = input;
+        
         if(input.startsWith('57') && input.length > 10) {
             phoneClean = input.substring(2);
         }
 
         const variants = [input, phoneClean, '+'+input, '+57'+phoneClean];
-        const users = await query('SELECT * FROM Users WHERE TELEFONO IN (?, ?, ?, ?) LIMIT 1', variants);
+        
+        // Filtramos solo citas FUTURAS para el conteo real
+        const now = getColombiaDate();
+        const currentDate = now.toISOString().split('T')[0];
+        const currentTime = now.toTimeString().split(' ')[0];
+
+        const sql = `
+            SELECT u.*, 
+            (SELECT COUNT(*) FROM Appointments a 
+             WHERE a.user_id = u.id 
+             AND a.status = 'confirmed'
+             AND (a.appointment_date > ? OR (a.appointment_date = ? AND a.start_time > ?))
+            ) as future_appointments
+            FROM Users u 
+            WHERE TELEFONO IN (?, ?, ?, ?) 
+            LIMIT 1
+        `;
+
+        const users = await query(sql, [currentDate, currentDate, currentTime, ...variants]);
         
         if (users.length > 0) {
             res.json({ found: true, user: users[0] });
@@ -36,11 +58,13 @@ router.get('/identify/:phone', async (req, res) => {
         }
     } catch (e) { 
         console.error(e);
-        res.status(500).json({ error: 'Error interno' }); 
+        res.status(500).json({ error: 'Error interno identificando usuario' }); 
     }
 });
 
-// 2. REGISTRO RÁPIDO
+// =========================================================================
+// 2. REGISTRO RÁPIDO (Asigna Plan 'Cortesía/Nuevo' por defecto)
+// =========================================================================
 router.post('/quick-register', async (req, res) => {
     try {
         let { nombre, cedula, correo, telefono } = req.body;
@@ -68,7 +92,9 @@ router.post('/quick-register', async (req, res) => {
     }
 });
 
-// 3. OBTENER HORAS
+// =========================================================================
+// 3. OBTENER HORAS DISPONIBLES
+// =========================================================================
 router.post('/get-service-hours', async (req, res) => {
     const { role } = req.body;
     
@@ -103,7 +129,9 @@ router.post('/get-service-hours', async (req, res) => {
     } catch (e) { res.status(500).json({ error: 'Error calculando horas' }); }
 });
 
-// 4. OBTENER DÍAS
+// =========================================================================
+// 4. OBTENER DÍAS DISPONIBLES (MÁXIMO 5 DÍAS)
+// =========================================================================
 router.post('/get-available-days', async (req, res) => {
     const { role, time } = req.body;
     let availableDays = [];
@@ -188,45 +216,92 @@ router.post('/get-available-days', async (req, res) => {
                     displayDate: d.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })
                 });
             }
+            // REGLA: "Solo aparezca 5 días"
             if (availableDays.length >= 5) break;
         }
         res.json({ success: true, days: availableDays });
     } catch (e) {
-        res.status(500).json({ error: 'Error calculando días' });
+        res.status(500).json({ error: 'Error calculando días disponibles' });
     }
 });
 
-// 5. CONFIRMACIÓN (Con reporte de éxito/fallo)
+// =========================================================================
+// 5. CONFIRMACIÓN Y AGENDAMIENTO (TODAS LAS REGLAS)
+// =========================================================================
 router.post('/confirm-booking-batch', async (req, res) => {
     const { userId, role, dates, time, serviceName } = req.body;
-    if (!dates || dates.length === 0) return res.json({ success: false, message: 'Sin fechas' });
+    
+    if (!dates || dates.length === 0) return res.json({ success: false, message: 'Sin fechas seleccionadas.' });
 
-    let dbRole = role;
-    let isPersonalized = false;
-    let isAdminService = false;
-
-    // Estructura para reportar resultados
-    const results = {
-        booked: [],
-        failed: []
-    };
+    // Determinar Webhook
+    let currentWebhookUrl = DEFAULT_WEBHOOK_URL;
+    if (serviceName && (serviceName.toLowerCase().includes('biomecánico') || serviceName.toLowerCase().includes('biomecanico'))) {
+        currentWebhookUrl = BIOMECANICO_WEBHOOK_URL;
+    }
 
     try {
-        const userRes = await query('SELECT * FROM Users WHERE id = ?', [userId]);
-        const user = userRes[0];
-        const planUsuario = (user.PLAN || '').toLowerCase();
+        const now = getColombiaDate();
+        const currentDate = now.toISOString().split('T')[0];
+        const currentTime = now.toTimeString().split(' ')[0];
+
+        // Obtener usuario y contar citas FUTURAS REALES
+        const userSql = `
+            SELECT PLAN, ESTADO, USUARIO, TELEFONO, CORREO_ELECTRONICO,
+            (SELECT COUNT(*) FROM Appointments a
+             WHERE a.user_id = id 
+             AND a.status = 'confirmed'
+             AND (a.appointment_date > ? OR (a.appointment_date = ? AND a.start_time > ?))
+            ) as active_count
+            FROM Users WHERE id = ?
+        `;
+        const userRes = await query(userSql, [currentDate, currentDate, currentTime, userId]);
         
-        // REGLA: Bloqueo automático si el plan es personalizado
-        if (planUsuario.includes('personalizado')) {
-            isPersonalized = true;
+        if (userRes.length === 0) return res.json({ success: false, message: 'Usuario no encontrado.' });
+        
+        const user = userRes[0];
+        const userEstado = (user.ESTADO || '').toUpperCase();
+        const userPlan = (user.PLAN || '').toLowerCase();
+        
+        // --- REGLA 2: VALIDACIÓN DE ESTADO ---
+        if (userEstado !== 'ACTIVO') {
+            return res.json({ 
+                success: false, 
+                message: `TU MEMBRESÍA ESTÁ ${userEstado}. No puedes agendar. Por favor contacta a un asesor.` 
+            });
         }
 
-        if (role === 'EntrenamientoPersonalizado') {
-            dbRole = 'Entrenador';
-            isPersonalized = true; 
-        } else if (role === 'Admin') {
-            isAdminService = true;
+        // --- REGLA 1 y CORTESÍA: VALIDACIÓN DE LÍMITE ---
+        // Si el plan es 'Cortesía/Nuevo' (o contiene esas palabras), el límite es 1.
+        // Si es otro plan, el límite es 3.
+        const isCourtesyPlan = userPlan.includes('cortesía') || userPlan.includes('cortesia') || userPlan.includes('nuevo');
+        const limitActive = isCourtesyPlan ? 1 : 3;
+        const currentActive = user.active_count;
+        const newRequestCount = dates.length;
+        const totalProjected = currentActive + newRequestCount;
+
+        if (totalProjected > limitActive) {
+            if (isCourtesyPlan) {
+                return res.json({
+                    success: false,
+                    message: `USUARIO DE CORTESÍA: Solo puedes tener 1 cita activa. Por favor asiste a tu sesión para formalizar tu membresía.`
+                });
+            } else {
+                return res.json({ 
+                    success: false, 
+                    message: `LÍMITE EXCEDIDO. Tienes ${currentActive} citas activas. Solo puedes tener un máximo de 3 citas agendadas simultáneamente.` 
+                });
+            }
         }
+
+        // Asignación de Staff
+        let dbRole = role;
+        let isPersonalized = false;
+        let isAdminService = false;
+        const results = { booked: [], failed: [] };
+
+        if (userPlan.includes('personalizado')) isPersonalized = true;
+        if (role === 'EntrenamientoPersonalizado') { dbRole = 'Entrenador'; isPersonalized = true; }
+        else if (role === 'Admin') isAdminService = true;
 
         for (const date of dates) {
             const dObj = new Date(date + 'T12:00:00');
@@ -240,7 +315,6 @@ router.post('/confirm-booking-batch', async (req, res) => {
                         SELECT COUNT(*) as total FROM Appointments 
                         WHERE staff_id = ? AND appointment_date = ? AND start_time = ? AND status = 'confirmed'
                     `, [mafe[0].id, date, time]);
-                    
                     if (ocupacion[0].total < 1) selectedStaff = mafe[0];
                 }
             } else {
@@ -273,14 +347,12 @@ router.post('/confirm-booking-batch', async (req, res) => {
 
             if (selectedStaff) {
                 const lockValue = isPersonalized ? 1 : 0;
-                
                 const insert = await query(
                     `INSERT INTO Appointments (user_id, staff_id, appointment_date, start_time, end_time, status, is_locking)
                      VALUES (?, ?, ?, ?, ADDTIME(?, '01:00:00'), 'confirmed', ?)`,
                     [userId, selectedStaff.id, date, time, time, lockValue]
                 );
                 
-                // Agregar a lista de éxitos
                 results.booked.push({ date, time, staff: selectedStaff.name });
 
                 // Webhook
@@ -303,35 +375,42 @@ router.post('/confirm-booking-batch', async (req, res) => {
                         email: user.CORREO_ELECTRONICO
                     }
                 };
-                axios.post(WEBHOOK_URL, webhookData).catch(err => console.error("WebHook Error", err.message));
+                
+                axios.post(currentWebhookUrl, webhookData).catch(err => console.error("WebHook Error", err.message));
+
             } else {
-                // Agregar a lista de fallos
-                results.failed.push({ date, time, reason: "Agenda llena o no disponible" });
+                results.failed.push({ date, time, reason: "Agenda llena" });
             }
         }
         
-        // Retornamos el objeto results completo
         res.json({ success: true, results: results });
 
     } catch (e) {
         console.error("Batch Error:", e);
-        res.status(500).json({ success: false, message: 'Error interno' });
+        res.status(500).json({ success: false, message: 'Error interno procesando reservas.' });
     }
 });
 
-// 6. OBTENER MIS CITAS
+// =========================================================================
+// 6. MIS CITAS (FILTRADO DE CITAS PASADAS)
+// =========================================================================
 router.get('/my-appointments/:userId', async (req, res) => {
     try {
         const { userId } = req.params;
+        const now = getColombiaDate();
+        const currentDate = now.toISOString().split('T')[0];
+        const currentTime = now.toTimeString().split(' ')[0];
+
+        // Solo muestra citas FUTURAS. Las pasadas desaparecen de la zona de booking.
         const results = await query(`
             SELECT a.id, a.appointment_date, a.start_time, s.name as staff_name, s.role
             FROM Appointments a
             JOIN Staff s ON a.staff_id = s.id
             WHERE a.user_id = ? 
-              AND a.appointment_date >= CURDATE() 
               AND a.status = 'confirmed'
+              AND (a.appointment_date > ? OR (a.appointment_date = ? AND a.start_time > ?))
             ORDER BY a.appointment_date ASC, a.start_time ASC
-        `, [userId]);
+        `, [userId, currentDate, currentDate, currentTime]);
         
         res.json({ success: true, appointments: results });
     } catch (e) {
@@ -339,7 +418,6 @@ router.get('/my-appointments/:userId', async (req, res) => {
     }
 });
 
-// 7. CANCELAR CITA
 router.delete('/cancel-appointment/:id', async (req, res) => {
     try {
         const { id } = req.params;
