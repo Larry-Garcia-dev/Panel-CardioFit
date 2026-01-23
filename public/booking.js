@@ -23,7 +23,7 @@ const otherServicesList = [
     { name: "Entrenamiento Simulador", role: "Entrenador" },
     { name: "Sauna Infrarrojo (40min)", role: "Spa" },
     // --- NUEVO: SERVICIO LORENA ---
-    { name: "Consulta Cardiología y Nutrición", role: "CONTACT_ONLY" }
+    { name: "Consulta Cardiología o Nutrición", role: "CONTACT_ONLY" }
 ];
 
 document.addEventListener('DOMContentLoaded', () => {
