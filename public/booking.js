@@ -1,16 +1,18 @@
 // public/booking.js
 
 // Variables Globales
-let selectedDates = new Set(); 
-let globalUserActiveAppointments = 0; 
+let selectedDates = new Set();
+let globalUserActiveAppointments = 0;
 let globalUserLimit = 3; // Límite por defecto (se ajustará a 1 si es cortesía)
-const WHATSAPP_ASESOR = "573155774777"; 
+const WHATSAPP_ASESOR = "573155774777";
 
 const otherServicesList = [
     { name: "Baño Terapéutico", role: "Spa" },
     { name: "Masaje Terapéutico/Relajante", role: "Spa" },
     { name: "Fisioterapia (Paquete 10)", role: "Fisioterapia" },
     { name: "Fisioterapia (Individual)", role: "Fisioterapia" },
+    { name: "Análisis Biomecánico y Exámenes (Electro, MAPA, Holter)", role: "Fisioterapia" },
+
     { name: "Electrocardiograma", role: "Admin" },
     { name: "Monitoreo Holter (24h)", role: "Admin" },
     { name: "Monitoreo Presión Arterial", role: "Admin" },
@@ -19,40 +21,42 @@ const otherServicesList = [
     { name: "Terapia de Compresión", role: "Fisioterapia" },
     { name: "Infrarrojo", role: "Fisioterapia" },
     { name: "Entrenamiento Simulador", role: "Entrenador" },
-    { name: "Sauna Infrarrojo (40min)", role: "Spa" }
+    { name: "Sauna Infrarrojo (40min)", role: "Spa" },
+    // --- NUEVO: SERVICIO LORENA ---
+    { name: "Consulta Cardiología y Nutrición", role: "CONTACT_ONLY" }
 ];
 
 document.addEventListener('DOMContentLoaded', () => {
     const rawPath = window.location.pathname.substring(1);
-    const phone = decodeURIComponent(rawPath); 
+    const phone = decodeURIComponent(rawPath);
 
-    if(!phone || phone.includes('booking')) {
+    if (!phone || phone.includes('booking')) {
         document.getElementById('loader').classList.add('hidden');
         Swal.fire({
             title: 'Enlace incompleto',
             text: 'Por favor usa el enlace enviado a tu WhatsApp.',
             icon: 'error',
-            width: '90%', 
+            width: '90%',
             maxWidth: '400px',
             confirmButtonColor: '#000'
         });
         return;
     }
-    
+
     identifyUser(phone);
-    renderOtherServices(); 
+    renderOtherServices();
 });
 
 function identifyUser(phone) {
     fetch(`/api/public/identify/${encodeURIComponent(phone)}`)
         .then(res => {
-            if(!res.ok) throw new Error("Error en servidor");
+            if (!res.ok) throw new Error("Error en servidor");
             return res.json();
         })
         .then(data => {
             document.getElementById('loader').classList.add('hidden');
-            
-            if(data.found) {
+
+            if (data.found) {
                 const user = data.user;
                 const userPlan = (user.PLAN || '').toLowerCase();
 
@@ -66,14 +70,14 @@ function identifyUser(phone) {
                                 <br><br>
                                 No puedes agendar nuevas citas por el momento.
                             </div>
-                            <a href="https://wa.me/${WHATSAPP_ASESOR}?text=Hablar con asesor" 
+                            <a href="https://wa.me/${WHATSAPP_ASESOR}?text=Hola, quiero reactivar mi plan." 
                                class="bg-green-500 text-white px-4 py-3 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-green-600 transition shadow-lg w-full whitespace-normal">
                                 <svg class="w-6 h-6 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24"><path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372s-1.04 1.016-1.04 2.479 1.065 2.876 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414z"/></svg>
                                 <span class="text-sm">Hablar con Asesor</span>
                             </a>
                         `,
                         icon: 'warning',
-                        width: '90%', 
+                        width: '90%',
                         maxWidth: '400px',
                         allowOutsideClick: false,
                         allowEscapeKey: false,
@@ -92,38 +96,13 @@ function identifyUser(phone) {
 
                 document.getElementById('gUserId').value = user.id;
                 document.getElementById('userName').innerText = user.USUARIO.split(' ')[0];
-                
+
                 // Guardar conteo de citas activas
                 globalUserActiveAppointments = user.future_appointments || 0;
 
-                // Alerta inicial si ya alcanzó su límite
-                if (globalUserActiveAppointments >= globalUserLimit) {
-                    let msg = '';
-                    if (globalUserLimit === 1) msg = "Tienes una cita de cortesía activa. Asiste para adquirir tu membresía y agendar más.";
-                    else msg = `Tienes ${globalUserActiveAppointments} citas activas (Límite máximo).`;
-
-                    Swal.fire({
-                        toast: true, position: 'top', icon: 'info',
-                        title: 'Límite de Agenda',
-                        text: msg,
-                        timer: 6000,
-                        showConfirmButton: false,
-                        customClass: { popup: 'rounded-xl shadow-lg border border-blue-100 mt-4' }
-                    });
-                } else if (globalUserActiveAppointments > 0) {
-                    Swal.fire({
-                        toast: true, position: 'top', icon: 'info',
-                        title: `Tienes ${globalUserActiveAppointments} cita(s) activas`,
-                        text: `Puedes agendar ${globalUserLimit - globalUserActiveAppointments} más.`,
-                        timer: 4000,
-                        showConfirmButton: false,
-                        customClass: { popup: 'rounded-xl shadow-lg border border-blue-100 mt-4' }
-                    });
-                }
-
-                showMenu('existing'); 
+                showMenu('existing');
             } else {
-                document.getElementById('regPhone').value = data.phoneClean || phone.replace(/\D/g, ''); 
+                document.getElementById('regPhone').value = data.phoneClean || phone.replace(/\D/g, '');
                 showStep('stepRegister');
             }
         })
@@ -152,39 +131,39 @@ document.getElementById('regForm').addEventListener('submit', (e) => {
         telefono: document.getElementById('regPhone').value
     };
 
-    fetch('/api/public/quick-register', { 
-        method: 'POST', 
-        headers: {'Content-Type': 'application/json'}, 
+    fetch('/api/public/quick-register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data)
     })
-    .then(res => res.json())
-    .then(res => {
-        if(res.success) {
-            document.getElementById('gUserId').value = res.userId;
-            document.getElementById('userName').innerText = data.nombre.split(' ')[0];
-            
-            // Usuario nuevo siempre es Cortesía -> Límite 1
-            globalUserLimit = 1;
-            globalUserActiveAppointments = 0;
-            
-            showMenu('new');
-        } else {
-            Swal.fire({ title: 'Error', text: 'No se pudo registrar. Intenta nuevamente.', icon: 'error', width: '90%', maxWidth: '400px', confirmButtonColor: '#000' });
+        .then(res => res.json())
+        .then(res => {
+            if (res.success) {
+                document.getElementById('gUserId').value = res.userId;
+                document.getElementById('userName').innerText = data.nombre.split(' ')[0];
+
+                // Usuario nuevo siempre es Cortesía -> Límite 1
+                globalUserLimit = 1;
+                globalUserActiveAppointments = 0;
+
+                showMenu('new');
+            } else {
+                Swal.fire({ title: 'Error', text: 'No se pudo registrar. Intenta nuevamente.', icon: 'error', width: '90%', maxWidth: '400px', confirmButtonColor: '#000' });
+                btn.disabled = false;
+                btn.innerText = "Continuar";
+            }
+        })
+        .catch(() => {
             btn.disabled = false;
             btn.innerText = "Continuar";
-        }
-    })
-    .catch(() => {
-        btn.disabled = false;
-        btn.innerText = "Continuar";
-    });
+        });
 });
 
 function showMenu(type) {
     const menuExisting = document.getElementById('menuExistingUsers');
     const menuNew = document.getElementById('menuNewUsers');
-    
-    if(type === 'existing') {
+
+    if (type === 'existing') {
         menuExisting.classList.remove('hidden');
         menuNew.classList.add('hidden');
     } else {
@@ -234,7 +213,7 @@ function renderAppointments(appointments) {
     appointments.forEach(appt => {
         const dateObj = new Date(appt.appointment_date);
         const day = dateObj.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'short' });
-        
+
         const [h, m] = appt.start_time.split(':');
         const hourInt = parseInt(h);
         const ampm = hourInt >= 12 ? 'PM' : 'AM';
@@ -243,7 +222,7 @@ function renderAppointments(appointments) {
 
         const card = document.createElement('div');
         card.className = "bg-white border border-gray-200 p-4 rounded-xl shadow-sm flex justify-between items-center";
-        
+
         card.innerHTML = `
             <div>
                 <p class="font-bold text-gray-800 capitalize">${day}</p>
@@ -270,17 +249,17 @@ function cancelMyAppointment(id) {
     }).then((result) => {
         if (result.isConfirmed) {
             fetch(`/api/public/cancel-appointment/${id}`, { method: 'DELETE' })
-            .then(res => res.json())
-            .then(data => {
-                if(data.success) {
-                    Swal.fire({ title: 'Cancelada', text: 'Tu cita ha sido eliminada.', icon: 'success', width: '90%', maxWidth: '400px', confirmButtonColor: '#000' }).then(() => {
-                        globalUserActiveAppointments = Math.max(0, globalUserActiveAppointments - 1);
-                        showMyAppointments(); 
-                    });
-                } else {
-                    Swal.fire({ title: 'Error', text: 'No se pudo cancelar la cita.', icon: 'error', width: '90%', maxWidth: '400px', confirmButtonColor: '#000' });
-                }
-            });
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        Swal.fire({ title: 'Cancelada', text: 'Tu cita ha sido eliminada.', icon: 'success', width: '90%', maxWidth: '400px', confirmButtonColor: '#000' }).then(() => {
+                            globalUserActiveAppointments = Math.max(0, globalUserActiveAppointments - 1);
+                            showMyAppointments();
+                        });
+                    } else {
+                        Swal.fire({ title: 'Error', text: 'No se pudo cancelar la cita.', icon: 'error', width: '90%', maxWidth: '400px', confirmButtonColor: '#000' });
+                    }
+                });
         }
     });
 }
@@ -305,6 +284,31 @@ function showOtherServices() {
 }
 
 function selectService(dbRole, serviceName) {
+    // === REGLA LORENA: REDIRECCIÓN WHATSAPP ===
+    if (dbRole === "CONTACT_ONLY") {
+        const message = `Hola, me interesa el servicio de ${serviceName} con la Dra. Lorena Gonzalez. Quisiera más información.`;
+        const url = `https://wa.me/${WHATSAPP_ASESOR}?text=${encodeURIComponent(message)}`;
+
+        Swal.fire({
+            title: 'Atención Especializada',
+            html: `
+                <div class="text-center">
+                    <p class="text-gray-600 mb-6 text-sm">Este servicio requiere una valoración previa.</p>
+                    <a href="${url}" target="_blank" 
+                       class="bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-6 rounded-xl flex items-center justify-center gap-2 transition transform hover:scale-105 shadow-lg w-full">
+                        <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372s-1.04 1.016-1.04 2.479 1.065 2.876 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414z"/></svg>
+                        Comunicar con Asesor
+                    </a>
+                </div>
+            `,
+            icon: 'info',
+            showConfirmButton: false,
+            showCloseButton: true,
+            customClass: { popup: 'rounded-2xl' }
+        });
+        return;
+    }
+
     if (serviceName === "Clase de Cortesía") {
         Swal.fire({
             title: '⚠️ Importante',
@@ -324,9 +328,9 @@ function proceedSelection(dbRole, serviceName) {
     document.getElementById('gRole').value = dbRole;
     document.getElementById('gServiceName').value = serviceName;
     document.getElementById('serviceTitleDisplay').innerText = serviceName;
-    
+
     showStep('stepTime');
-    loadServiceHours(dbRole); 
+    loadServiceHours(dbRole);
 }
 
 function loadServiceHours(role) {
@@ -337,31 +341,31 @@ function loadServiceHours(role) {
 
     fetch('/api/public/get-service-hours', {
         method: 'POST',
-        headers: {'Content-Type': 'application/json'},
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ role: role })
     })
-    .then(res => res.json())
-    .then(data => {
-        loader.classList.add('hidden');
-        if(!data.hours || data.hours.length === 0) {
-            grid.innerHTML = '<p class="col-span-3 text-center text-gray-400 text-sm">No hay horarios disponibles.</p>';
-            return;
-        }
+        .then(res => res.json())
+        .then(data => {
+            loader.classList.add('hidden');
+            if (!data.hours || data.hours.length === 0) {
+                grid.innerHTML = '<p class="col-span-3 text-center text-gray-400 text-sm">No hay horarios disponibles.</p>';
+                return;
+            }
 
-        data.hours.forEach(timeStr => {
-            const [h, m] = timeStr.split(':');
-            const hourInt = parseInt(h);
-            const hour12 = hourInt % 12 || 12;
-            const ampm = hourInt >= 12 ? 'PM' : 'AM';
-            const displayTime = `${hour12}:${m} ${ampm}`;
-            
-            const btn = document.createElement('button');
-            btn.className = "py-3 bg-white border border-gray-200 rounded-xl font-bold text-gray-700 hover:border-blue-500 hover:bg-blue-50 transition active:scale-95 shadow-sm";
-            btn.innerText = displayTime;
-            btn.onclick = () => selectTime(timeStr, displayTime); 
-            grid.appendChild(btn);
+            data.hours.forEach(timeStr => {
+                const [h, m] = timeStr.split(':');
+                const hourInt = parseInt(h);
+                const hour12 = hourInt % 12 || 12;
+                const ampm = hourInt >= 12 ? 'PM' : 'AM';
+                const displayTime = `${hour12}:${m} ${ampm}`;
+
+                const btn = document.createElement('button');
+                btn.className = "py-3 bg-white border border-gray-200 rounded-xl font-bold text-gray-700 hover:border-blue-500 hover:bg-blue-50 transition active:scale-95 shadow-sm";
+                btn.innerText = displayTime;
+                btn.onclick = () => selectTime(timeStr, displayTime);
+                grid.appendChild(btn);
+            });
         });
-    });
 }
 
 function selectTime(timeVal, displayTime) {
@@ -377,7 +381,7 @@ function loadDays() {
     const list = document.getElementById('daysList');
     const loader = document.getElementById('loadingDays');
     const noDays = document.getElementById('noDays');
-    
+
     list.innerHTML = '';
     list.classList.add('hidden');
     noDays.classList.add('hidden');
@@ -385,24 +389,25 @@ function loadDays() {
 
     fetch('/api/public/get-available-days', {
         method: 'POST',
-        headers: {'Content-Type': 'application/json'},
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
             role: document.getElementById('gRole').value,
-            time: document.getElementById('gTime').value
+            time: document.getElementById('gTime').value,
+            serviceName: document.getElementById('gServiceName').value
         })
     })
-    .then(res => res.json())
-    .then(data => {
-        loader.classList.add('hidden');
-        if(!data.days || data.days.length === 0) {
-            noDays.classList.remove('hidden');
-            return;
-        }
-        list.classList.remove('hidden');
-        data.days.forEach(day => {
-            const label = document.createElement('label');
-            label.className = "block cursor-pointer tap-highlight-transparent";
-            label.innerHTML = `
+        .then(res => res.json())
+        .then(data => {
+            loader.classList.add('hidden');
+            if (!data.days || data.days.length === 0) {
+                noDays.classList.remove('hidden');
+                return;
+            }
+            list.classList.remove('hidden');
+            data.days.forEach(day => {
+                const label = document.createElement('label');
+                label.className = "block cursor-pointer tap-highlight-transparent";
+                label.innerHTML = `
                 <input type="checkbox" value="${day.dateStr}" class="hidden day-check" onchange="toggleDate(this)">
                 <div class="border border-gray-200 bg-white p-4 rounded-xl flex justify-between items-center transition-all hover:bg-gray-50 shadow-sm">
                     <span class="font-bold text-gray-700 text-lg capitalize">${day.displayDate}</span>
@@ -413,9 +418,9 @@ function loadDays() {
                     </div>
                 </div>
             `;
-            list.appendChild(label);
+                list.appendChild(label);
+            });
         });
-    });
 }
 
 function toggleDate(checkbox) {
@@ -423,22 +428,36 @@ function toggleDate(checkbox) {
     const circle = container.querySelector('.check-circle');
     const icon = container.querySelector('.check-icon');
 
-    // REGLA 1 y CORTESÍA: VALIDACIÓN DE LÍMITE (3 o 1)
+    const role = document.getElementById('gRole').value;
+    const isCourtesy = globalUserLimit === 1;
+
     if (checkbox.checked) {
+        // === REGLA: Límite dinámico ===
+        // Si es Cortesía: 1 cita máximo (global)
+        // Si es Activo y Entrenador: 3 citas máximo
+        // Si es Activo y Otro servicio: Ilimitado (frontend libre, backend valida disponibilidad)
+
+        let limit = globalUserLimit; // Por defecto 3 (Activo) o 1 (Cortesía)
+
+        if (!isCourtesy && role !== 'Entrenador') {
+            limit = 99; // Permitir selección ilimitada visualmente para no entrenamientos
+        }
+
         // Cálculo: Citas actuales + Seleccionadas ahora + 1 (la nueva)
         const potentialTotal = globalUserActiveAppointments + selectedDates.size + 1;
-        
-        if (potentialTotal > globalUserLimit) {
+
+        // Solo aplicar bloqueo si supera el límite Y es un servicio restringido (o cortesía)
+        if (potentialTotal > limit) {
             checkbox.checked = false; // Desmarcar visualmente
-            
+
             let title = 'Límite Alcanzado';
-            let msg = `Solo puedes tener un máximo de <b>${globalUserLimit} citas activas</b>.`;
-            
-            if(globalUserLimit === 1) {
+            let msg = '';
+
+            if (isCourtesy) {
                 title = 'Usuario de Cortesía / Nuevo';
-                msg = `Como usuario nuevo, solo puedes agendar <b>1 cita</b>.<br>Debes asistir a tu sesión para formalizar tu membresía y poder agendar más.`;
+                msg = `Solo puedes tener <b>1 cita activa</b>. Asiste a tu sesión para formalizar tu membresía.`;
             } else {
-                msg += `<br>Tienes ${globalUserActiveAppointments} activas y has seleccionado ${selectedDates.size}.`;
+                msg = `Solo puedes tener un máximo de <b>${limit} sesiones de entrenamiento activas</b>.`;
             }
 
             Swal.fire({
@@ -477,9 +496,9 @@ function updateFloatingButton() {
 function confirmBatchBooking() {
     const datesArray = Array.from(selectedDates);
     const serviceName = document.getElementById('gServiceName').value;
-    
+
     let textSwal = 'Se intentarán agendar las fechas seleccionadas.';
-    if(serviceName === "Clase de Cortesía") {
+    if (serviceName === "Clase de Cortesía") {
         textSwal = 'Recuerda llegar 30 min antes. ¿Confirmar reservas?';
     }
 
@@ -491,12 +510,12 @@ function confirmBatchBooking() {
         showCancelButton: true,
         confirmButtonColor: '#000', confirmButtonText: 'Sí, confirmar', cancelButtonText: 'Revisar'
     }).then((res) => {
-        if(res.isConfirmed) {
+        if (res.isConfirmed) {
             Swal.fire({ title: 'Verificando...', text: 'Por favor espera un momento.', allowOutsideClick: false, width: '90%', maxWidth: '300px', didOpen: () => Swal.showLoading() });
-            
+
             fetch('/api/public/confirm-booking-batch', {
                 method: 'POST',
-                headers: {'Content-Type': 'application/json'},
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     userId: document.getElementById('gUserId').value,
                     role: document.getElementById('gRole').value,
@@ -505,60 +524,60 @@ function confirmBatchBooking() {
                     dates: datesArray
                 })
             })
-            .then(r => r.json())
-            .then(resp => {
-                if(resp.success) {
-                    let htmlMsg = '<div class="text-left text-sm space-y-3">';
-                    
-                    if (resp.results.booked.length > 0) {
-                        htmlMsg += `
+                .then(r => r.json())
+                .then(resp => {
+                    if (resp.success) {
+                        let htmlMsg = '<div class="text-left text-sm space-y-3">';
+
+                        if (resp.results.booked.length > 0) {
+                            htmlMsg += `
                             <div class="bg-green-50 p-3 rounded-lg border border-green-100">
                                 <h4 class="font-bold text-green-700 text-xs uppercase mb-1">✅ Exitosas</h4>
                                 <ul class="list-disc pl-4 text-green-800 text-xs">`;
-                        resp.results.booked.forEach(item => {
-                            htmlMsg += `<li>${item.date} | ${item.time}<br><span class="text-[10px] text-green-600 font-bold">Staff: ${item.staff}</span></li>`;
-                        });
-                        htmlMsg += `</ul></div>`;
-                    }
+                            resp.results.booked.forEach(item => {
+                                htmlMsg += `<li>${item.date} | ${item.time}<br><span class="text-[10px] text-green-600 font-bold">Staff: ${item.staff}</span></li>`;
+                            });
+                            htmlMsg += `</ul></div>`;
+                        }
 
-                    if (resp.results.failed.length > 0) {
-                        htmlMsg += `
+                        if (resp.results.failed.length > 0) {
+                            htmlMsg += `
                             <div class="bg-red-50 p-3 rounded-lg border border-red-100">
                                 <h4 class="font-bold text-red-700 text-xs uppercase mb-1">⛔ No agendadas</h4>
                                 <ul class="list-disc pl-4 text-red-800 text-xs">`;
-                        resp.results.failed.forEach(item => {
-                            htmlMsg += `<li>${item.date} | ${item.time}<br><span class="text-[10px]">${item.reason}</span></li>`;
+                            resp.results.failed.forEach(item => {
+                                htmlMsg += `<li>${item.date} | ${item.time}<br><span class="text-[10px]">${item.reason}</span></li>`;
+                            });
+                            htmlMsg += `</ul></div>`;
+                        }
+                        htmlMsg += '</div>';
+
+                        const isPartial = resp.results.failed.length > 0;
+                        const finalIcon = isPartial ? 'warning' : 'success';
+                        const finalTitle = isPartial ? 'Proceso Finalizado' : '¡Todo Listo!';
+
+                        Swal.fire({
+                            icon: finalIcon, title: finalTitle, html: htmlMsg, width: '90%', maxWidth: '400px',
+                            confirmButtonText: 'Entendido', confirmButtonColor: '#000',
+                            customClass: { popup: 'rounded-2xl' }
+                        }).then(() => {
+                            window.location.reload();
                         });
-                        htmlMsg += `</ul></div>`;
+
+                    } else {
+                        Swal.fire({ title: 'Atención', text: resp.message || 'Error desconocido', icon: 'error', width: '90%', maxWidth: '400px', confirmButtonColor: '#000' });
                     }
-                    htmlMsg += '</div>';
-
-                    const isPartial = resp.results.failed.length > 0;
-                    const finalIcon = isPartial ? 'warning' : 'success';
-                    const finalTitle = isPartial ? 'Proceso Finalizado' : '¡Todo Listo!';
-
-                    Swal.fire({
-                        icon: finalIcon, title: finalTitle, html: htmlMsg, width: '90%', maxWidth: '400px',
-                        confirmButtonText: 'Entendido', confirmButtonColor: '#000',
-                        customClass: { popup: 'rounded-2xl' }
-                    }).then(() => {
-                        window.location.reload();
-                    });
-
-                } else {
-                    Swal.fire({ title: 'Atención', text: resp.message || 'Error desconocido', icon: 'error', width: '90%', maxWidth: '400px', confirmButtonColor: '#000' });
-                }
-            })
-            .catch(err => {
-                console.error(err);
-                Swal.fire({ title: 'Error', text: 'Fallo de conexión al confirmar.', icon: 'error', width: '90%', maxWidth: '400px', confirmButtonColor: '#000' });
-            });
+                })
+                .catch(err => {
+                    console.error(err);
+                    Swal.fire({ title: 'Error', text: 'Fallo de conexión al confirmar.', icon: 'error', width: '90%', maxWidth: '400px', confirmButtonColor: '#000' });
+                });
         }
     });
 }
 
 function showStep(id) {
     ['stepRegister', 'stepService', 'stepOtherList', 'stepTime', 'stepDay', 'stepMyAppointments'].forEach(s => document.getElementById(s).classList.add('hidden'));
-    document.getElementById('floatingConfirm').classList.add('hidden'); 
+    document.getElementById('floatingConfirm').classList.add('hidden');
     document.getElementById(id).classList.remove('hidden');
 }
