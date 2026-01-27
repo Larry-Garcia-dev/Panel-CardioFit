@@ -182,6 +182,10 @@ function openUserModal(id) {
             document.getElementById('editPlanInfo').value = user.PLAN_INFO || '';
             document.getElementById('editFechaPago').value = formatDateForInput(user.FECHA_PAGO);
             document.getElementById('editNotas').value = user.NOTAS || '';
+            // --- NUEVO: Cargar datos de pago ---
+            document.getElementById('editMetodoPago').value = user.METODO_PAGO || '';
+            document.getElementById('editMontoPago').value = user.MONTO_PAGO || '';
+            // -----------------------------------
 
             // ... resto del código ...
             // Fechas
@@ -271,6 +275,10 @@ function saveUserChanges() {
 
     const data = {
         usuario: document.getElementById('editNombre').value,
+        // --- NUEVO: Enviar datos de pago ---
+        metodo_pago: document.getElementById('editMetodoPago').value,
+        monto_pago: document.getElementById('editMontoPago').value,
+        // -----------------------------------
         cedula: document.getElementById('editCedula').value,
         telefono: document.getElementById('editTelefono').value,
         correo: document.getElementById('editCorreo').value,

@@ -77,7 +77,7 @@ function renderGrid() {
             let bgColor = 'bg-white';
             if (count > 0) bgColor = 'bg-green-50';
             if (count >= 5) bgColor = 'bg-red-50';
-            if (isLocked) bgColor = 'bg-red-200'; // Rojo fuerte si bloqueado
+            if (isLocked) bgColor = 'bg-red-200'; 
 
             html += `<td class="p-2 border-r border-gray-200 align-top ${bgColor} relative grid-cell">`;
             
@@ -121,11 +121,16 @@ function renderGrid() {
             appts.forEach(appt => {
                 const isTheLocker = (appt.is_locking == 1 || appt.is_locking === true);
                 const borderClass = isTheLocker ? 'border-red-500 bg-red-100 ring-1 ring-red-300' : 'border-gray-300 bg-white';
+                
+                // --- CAMBIO: INFORMACIÓN DE SERVICIO EN TOOLTIP ---
+                // Se prioriza: 1. Service Name guardado, 2. Plan del usuario, 3. 'General'
+                const serviceInfo = appt.service_name || appt.PLAN || 'General';
+                const tooltipText = `${appt.cliente}\nServicio: ${serviceInfo}`;
 
                 html += `
-                    <div class="user-chip flex justify-between items-center border ${borderClass} rounded px-2 py-1 shadow-sm group hover:shadow-md transition">
-                        <div class="truncate w-full pr-1">
-                            <span class="font-bold text-gray-800 text-xs block" title="${appt.cliente}">
+                    <div class="user-chip flex justify-between items-center border ${borderClass} rounded px-2 py-1 shadow-sm group hover:shadow-md transition" 
+                         title="${tooltipText}"> <div class="truncate w-full pr-1">
+                            <span class="font-bold text-gray-800 text-xs block" style="cursor:help;">
                                 ${isTheLocker ? '🔒 ' : ''}${appt.cliente.split(' ')[0]}
                             </span>
                         </div>

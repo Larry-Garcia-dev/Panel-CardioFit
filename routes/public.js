@@ -59,7 +59,7 @@ function isValidDateRule(staffId, dateObj, serviceType) {
 }
 
 // =========================================================================
-// 1. IDENTIFICAR USUARIO (CONTEO DE CITAS) [CORREGIDO]
+// 1. IDENTIFICAR USUARIO (CONTEO DE CITAS)
 // =========================================================================
 router.get('/identify/:phone', async (req, res) => {
     try {
@@ -73,7 +73,6 @@ router.get('/identify/:phone', async (req, res) => {
         const currentDate = now.toISOString().split('T')[0];
         const currentTime = now.toTimeString().split(' ')[0];
 
-        // RESTAURADO: Subconsulta para contar citas futuras (importante para validación de límites)
         const sql = `
             SELECT u.*, 
             (SELECT COUNT(*) FROM Appointments a 
@@ -100,7 +99,7 @@ router.get('/identify/:phone', async (req, res) => {
 });
 
 // =========================================================================
-// 2. REGISTRO RÁPIDO [RESTAURADO]
+// 2. REGISTRO RÁPIDO
 // =========================================================================
 router.post('/quick-register', async (req, res) => {
     try {
@@ -111,15 +110,12 @@ router.post('/quick-register', async (req, res) => {
             telLimpio = telLimpio.substring(2);
         }
 
-        // Verificar si la cédula ya existe para no duplicar
         const exists = await query('SELECT id FROM Users WHERE N_CEDULA = ?', [cedula]);
         if (exists.length > 0) {
-            // Si existe por cédula pero cambió teléfono, actualizamos teléfono
             await query('UPDATE Users SET TELEFONO = ? WHERE id = ?', [telLimpio, exists[0].id]);
             return res.json({ success: true, userId: exists[0].id, usuario: nombre });
         }
         
-        // Insertar nuevo usuario con plan por defecto
         const result = await query(
             `INSERT INTO Users (USUARIO, N_CEDULA, CORREO_ELECTRONICO, TELEFONO, ESTADO, PLAN, F_INGRESO)
              VALUES (?, ?, ?, ?, 'ACTIVO', 'Cortesía/Nuevo', CURDATE())`,
@@ -133,10 +129,10 @@ router.post('/quick-register', async (req, res) => {
 });
 
 // =========================================================================
-// 3. OBTENER HORAS DISPONIBLES
+// 3. OBTENER HORAS DISPONIBLES (CON FILTRO DE BAÑO TERAPÉUTICO)
 // =========================================================================
 router.post('/get-service-hours', async (req, res) => {
-    const { role } = req.body;
+    const { role, serviceName } = req.body; // Recibimos serviceName
     let dbRole = role === 'EntrenamientoPersonalizado' ? 'Entrenador' : role;
 
     try {
@@ -152,6 +148,13 @@ router.post('/get-service-hours', async (req, res) => {
             let start = parseInt(sch.start_time.split(':')[0]);
             let end = parseInt(sch.end_time.split(':')[0]);
             for (let h = start; h < end; h++) {
+                // Filtro especial para "Baño Terapéutico"
+                // 8am a 11am (8, 9, 10) y 4pm a 7pm (16, 17, 18)
+                if (serviceName === "Baño Terapéutico") {
+                    const validHours = [8, 9, 10, 16, 17, 18];
+                    if (!validHours.includes(h)) continue;
+                }
+
                 hourSet.add(h.toString().padStart(2, '0') + ":00:00");
             }
         });
@@ -160,7 +163,7 @@ router.post('/get-service-hours', async (req, res) => {
 });
 
 // =========================================================================
-// 4. OBTENER DÍAS (REGLA DE ORO: Validar Capacidad Real)
+// 4. OBTENER DÍAS (REGLA DOBLE HORA PARA CIRCUITO)
 // =========================================================================
 router.post('/get-available-days', async (req, res) => {
     const { role, time, serviceName } = req.body;
@@ -175,6 +178,10 @@ router.post('/get-available-days', async (req, res) => {
         dbRole = 'Entrenador';
         isPersonalized = true;
     }
+
+    // Flag para Circuito de Recuperación (2 horas)
+    const isDoubleSlot = serviceName === "Circuito Recuperación";
+    const nextTime = (requestHour + 1).toString().padStart(2, '0') + ":00:00";
 
     try {
         for (let i = 0; i < 45; i++) {
@@ -202,22 +209,40 @@ router.post('/get-available-days', async (req, res) => {
             for (const staff of staffWorking) {
                 if (!isValidDateRule(staff.id, d, serviceName || role)) continue;
 
-                // CONTAR OCUPACIÓN REAL (Regla de Oro)
-                const ocupacion = await query(`
+                // 1. Validar Hora 1
+                const ocupacion1 = await query(`
                     SELECT COUNT(*) as total, MAX(is_locking) as locked
                     FROM Appointments 
                     WHERE staff_id = ? AND appointment_date = ? AND start_time = ? AND status = 'confirmed'
                 `, [staff.id, dateStr, time]);
 
-                const isLocked = ocupacion[0].locked == 1;
-                const currentBookings = ocupacion[0].total;
+                const isLocked1 = ocupacion1[0].locked == 1;
+                const count1 = ocupacion1[0].total;
                 
-                // VALIDACIÓN CAPACIDAD
-                if (isPersonalized) {
-                    if (!isLocked && currentBookings === 0) { hasSpace = true; break; }
-                } else {
-                    if (!isLocked && currentBookings < staff.max_capacity) { hasSpace = true; break; }
+                let slot1Ok = false;
+                if (isPersonalized) slot1Ok = (!isLocked1 && count1 === 0);
+                else slot1Ok = (!isLocked1 && count1 < staff.max_capacity);
+
+                if (!slot1Ok) continue; 
+
+                // 2. Validar Hora 2 (Si es Circuito)
+                if (isDoubleSlot) {
+                    const ocupacion2 = await query(`
+                        SELECT COUNT(*) as total, MAX(is_locking) as locked
+                        FROM Appointments 
+                        WHERE staff_id = ? AND appointment_date = ? AND start_time = ? AND status = 'confirmed'
+                    `, [staff.id, dateStr, nextTime]);
+
+                    const isLocked2 = ocupacion2[0].locked == 1;
+                    const count2 = ocupacion2[0].total;
+                    
+                    let slot2Ok = (!isLocked2 && count2 < staff.max_capacity);
+                    
+                    if (!slot2Ok) continue; 
                 }
+
+                hasSpace = true;
+                break;
             }
 
             if (hasSpace) {
@@ -233,7 +258,7 @@ router.post('/get-available-days', async (req, res) => {
 });
 
 // =========================================================================
-// 5. CONFIRMACIÓN (LÍMITES + DOBLE WEBHOOK)
+// 5. CONFIRMACIÓN (INSERCIÓN DOBLE PARA CIRCUITO + SERVICE NAME)
 // =========================================================================
 router.post('/confirm-booking-batch', async (req, res) => {
     const { userId, role, dates, time, serviceName } = req.body;
@@ -258,9 +283,12 @@ router.post('/confirm-booking-batch', async (req, res) => {
         let isPersonalized = false;
         if (role === 'EntrenamientoPersonalizado') { dbRole = 'Entrenador'; isPersonalized = true; }
 
+        // Flag Circuito
+        const isDoubleSlot = serviceName === "Circuito Recuperación";
+        const requestHour = parseInt(time.split(':')[0]);
+        const nextTime = (requestHour + 1).toString().padStart(2, '0') + ":00:00";
+
         // === VALIDACIÓN LÍMITES POR TIPO ===
-        
-        // 1. Cortesía: Máximo 1 cita TOTAL
         if (userPlan.includes('cortesía') || userPlan.includes('nuevo')) {
             const countAll = await query(`
                 SELECT COUNT(*) as c FROM Appointments 
@@ -272,7 +300,6 @@ router.post('/confirm-booking-batch', async (req, res) => {
                 return res.json({ success: false, message: 'USUARIO DE CORTESÍA: Solo puedes tener 1 cita activa.' });
             }
         } 
-        // 2. Entrenamientos (Activos): Máximo 3 citas activas
         else if (dbRole === 'Entrenador') {
             const countTrainings = await query(`
                 SELECT COUNT(*) as c FROM Appointments a
@@ -286,21 +313,18 @@ router.post('/confirm-booking-batch', async (req, res) => {
                 return res.json({ success: false, message: `LÍMITE ENTRENAMIENTO: Tienes ${countTrainings[0].c} citas activas. Máximo 3 permitidas.` });
             }
         }
-        // 3. Otros Servicios: SIN LÍMITE (Pasan directo)
-
+        
         // === PROCESO DE AGENDAMIENTO ===
         const results = { booked: [], failed: [] };
         let duration = '01:00:00';
-        if (role === 'Spa' && (serviceName.includes('recuperación') || serviceName.includes('relajación'))) {
-            duration = '02:00:00';
-        }
+        if (isDoubleSlot) duration = '02:00:00';
 
         for (const date of dates) {
             const dObj = new Date(date + 'T12:00:00');
             const dayOfWeek = dObj.getDay() === 0 ? 7 : dObj.getDay();
             let selectedStaff = null;
 
-            // Buscar Candidatos Disponibles
+            // Buscar Candidatos
             const candidates = await query(`
                 SELECT s.id, s.name, ws.max_capacity 
                 FROM Staff s
@@ -313,37 +337,64 @@ router.post('/confirm-booking-batch', async (req, res) => {
             for (const staff of candidates) {
                 if (!isValidDateRule(staff.id, dObj, serviceName || role)) continue;
 
-                // Validar Ocupación Real
-                const apptInfo = await query(`
+                // 1. Validar Hora 1
+                const ocupacion1 = await query(`
                     SELECT COUNT(*) as total, MAX(is_locking) as locked
-                    FROM Appointments 
-                    WHERE staff_id = ? AND appointment_date = ? AND start_time = ? AND status = 'confirmed'
+                    FROM Appointments WHERE staff_id = ? AND appointment_date = ? AND start_time = ? AND status = 'confirmed'
                 `, [staff.id, date, time]);
 
-                const isLocked = apptInfo[0].locked == 1;
-                const count = apptInfo[0].total;
+                const isLocked1 = ocupacion1[0].locked == 1;
+                const count1 = ocupacion1[0].total;
+                let slot1Ok = false;
 
-                if (isPersonalized) {
-                    if (!isLocked && count === 0) { selectedStaff = staff; break; }
-                } else {
-                    if (!isLocked && count < staff.max_capacity) { selectedStaff = staff; break; }
+                if (isPersonalized) slot1Ok = (!isLocked1 && count1 === 0);
+                else slot1Ok = (!isLocked1 && count1 < staff.max_capacity);
+
+                if (!slot1Ok) continue;
+
+                // 2. Validar Hora 2 (Si es Circuito)
+                if (isDoubleSlot) {
+                    const ocupacion2 = await query(`
+                        SELECT COUNT(*) as total, MAX(is_locking) as locked
+                        FROM Appointments WHERE staff_id = ? AND appointment_date = ? AND start_time = ? AND status = 'confirmed'
+                    `, [staff.id, date, nextTime]);
+
+                    const isLocked2 = ocupacion2[0].locked == 1;
+                    const count2 = ocupacion2[0].total;
+                    let slot2Ok = (!isLocked2 && count2 < staff.max_capacity);
+
+                    if (!slot2Ok) continue;
                 }
+
+                selectedStaff = staff; 
+                break;
             }
 
             if (selectedStaff) {
                 const lockVal = isPersonalized ? 1 : 0;
-                const insert = await query(
-                    `INSERT INTO Appointments (user_id, staff_id, appointment_date, start_time, end_time, status, is_locking)
-                     VALUES (?, ?, ?, ?, ADDTIME(?, ?), 'confirmed', ?)`,
-                    [userId, selectedStaff.id, date, time, time, duration, lockVal]
+                
+                // INSERTAR CITA 1 (GUARDANDO service_name)
+                const insert1 = await query(
+                    `INSERT INTO Appointments (user_id, staff_id, appointment_date, start_time, end_time, status, is_locking, service_name)
+                     VALUES (?, ?, ?, ?, ADDTIME(?, '01:00:00'), 'confirmed', ?, ?)`,
+                    [userId, selectedStaff.id, date, time, time, lockVal, serviceName]
                 );
+
+                // SI ES CIRCUITO, INSERTAR CITA 2 CONSECUTIVA
+                if (isDoubleSlot) {
+                    await query(
+                        `INSERT INTO Appointments (user_id, staff_id, appointment_date, start_time, end_time, status, is_locking, service_name)
+                         VALUES (?, ?, ?, ?, ADDTIME(?, '01:00:00'), 'confirmed', ?, ?)`,
+                        [userId, selectedStaff.id, date, nextTime, nextTime, lockVal, serviceName]
+                    );
+                }
                 
                 results.booked.push({ date, time, staff: selectedStaff.name });
 
-                // 3. ENVÍO A LOS DOS WEBHOOKS
+                // ENVÍO WEBHOOKS
                 const webhookPayload = {
                     mensaje: `Nueva Reserva: ${serviceName}`,
-                    cita_id: insert.insertId,
+                    cita_id: insert1.insertId,
                     fecha: date,
                     hora: time,
                     servicio: serviceName,
@@ -359,9 +410,7 @@ router.post('/confirm-booking-batch', async (req, res) => {
                     }
                 };
                 
-                // Enviar a WhatsApp
                 axios.post(WHATSAPP_WEBHOOK_URL, webhookPayload).catch(e => console.error("Whatsapp Webhook Error:", e.message));
-                // Enviar a Default (Agenda Automática)
                 axios.post(DEFAULT_WEBHOOK_URL, webhookPayload).catch(e => console.error("Default Webhook Error:", e.message));
 
             } else {
@@ -376,7 +425,7 @@ router.post('/confirm-booking-batch', async (req, res) => {
     }
 });
 
-// 6. MIS CITAS (Mostrar solo futuras)
+// 6. MIS CITAS
 router.get('/my-appointments/:userId', async (req, res) => {
     try {
         const { userId } = req.params;
@@ -385,7 +434,7 @@ router.get('/my-appointments/:userId', async (req, res) => {
         const currentTime = now.toTimeString().split(' ')[0];
 
         const results = await query(`
-            SELECT a.id, a.appointment_date, a.start_time, s.name as staff_name, s.role
+            SELECT a.id, a.appointment_date, a.start_time, s.name as staff_name, s.role, a.service_name
             FROM Appointments a
             JOIN Staff s ON a.staff_id = s.id
             WHERE a.user_id = ? 

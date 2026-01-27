@@ -4,7 +4,6 @@ const router = express.Router();
 const axios = require('axios'); // Si lo usas para webhooks
 
 // IMPORTANTE: Usamos la conexión compartida (Pool)
-// Ya NO creamos una conexión manual aquí
 const db = require('../config/db');
 
 // URL del Webhook
@@ -16,10 +15,10 @@ router.get('/grid', (req, res) => {
 
     const sqlStaff = 'SELECT id, name, role FROM Staff WHERE is_active = 1 ORDER BY priority_order ASC';
     
-    // Traemos citas incluyendo el estado de bloqueo
+    // --- CAMBIO AQUÍ: Agregamos a.service_name y u.PLAN ---
     const sqlAppts = `
-        SELECT a.id, a.staff_id, a.start_time, a.user_id, a.is_locking,
-               u.USUARIO as cliente, u.TELEFONO, u.N_CEDULA, u.ESTADO, u.CORREO_ELECTRONICO
+        SELECT a.id, a.staff_id, a.start_time, a.user_id, a.is_locking, a.service_name,
+               u.USUARIO as cliente, u.TELEFONO, u.N_CEDULA, u.ESTADO, u.CORREO_ELECTRONICO, u.PLAN
         FROM Appointments a
         JOIN Users u ON a.user_id = u.id
         WHERE a.appointment_date = ? AND a.status = 'confirmed'
@@ -46,7 +45,6 @@ router.post('/book', (req, res) => {
     const { userId, staffId, date, time, lock } = req.body; 
 
     // --- CORRECCIÓN CRÍTICA: Detección segura ---
-    // Aceptamos true, 'true', 1 o '1' como bloqueo activado
     let isLockingValue = 0;
     if (lock === true || lock === 'true' || lock === 1 || lock === '1') {
         isLockingValue = 1;
@@ -171,8 +169,6 @@ router.post('/mass-lock', (req, res) => {
         
         // 3. Si NO había nadie (hora vacía), insertamos un bloqueo para cerrar la hora
         else {
-            // Necesitamos un user_id obligatorio. Usamos el ID 1 (Admin) o el primer usuario que encontremos como "dummy".
-            // O idealmente, tienes un usuario "BLOQUEO" en tu BD. Aquí usaremos el ID 1 por defecto.
             const sqlInsertLock = `
                 INSERT INTO Appointments (user_id, staff_id, appointment_date, start_time, end_time, status, is_locking)
                 VALUES (1, ?, ?, ?, ADDTIME(?, '01:00:00'), 'confirmed', 1)

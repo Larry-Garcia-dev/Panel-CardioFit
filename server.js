@@ -226,22 +226,22 @@ app.get('/api/Users/:id', (req, res) => {
     });
 });
 
-// 8. Actualizar Usuario (VERSIÓN BLINDADA)
+// 8. Actualizar Usuario (VERSIÓN CON PAGOS)
 app.put('/api/Users/:id', (req, res) => {
     const id = req.params.id;
 
-    // Función para limpiar datos vacíos (Evita errores con fechas e ints)
+    // Función para limpiar datos vacíos
     const clean = (val) => (val === '' || val === undefined || val === 'null') ? null : val;
 
     const {
         usuario, cedula, correo, telefono, plan,
         f_ingreso, f_vencimiento, estado, f_nacimiento,
         edad, sexo, f_examen, f_nutricion, f_deportiva, direccion,
-        plan_info, fecha_pago, notas
+        plan_info, fecha_pago, notas,
+        metodo_pago, monto_pago // <--- NUEVOS CAMPOS RECIBIDOS
     } = req.body;
 
-    // DEBUG: Ver en la terminal qué está llegando
-    console.log(`📝 Actualizando ID ${id}:`, { usuario, direccion, edad, f_nacimiento });
+    console.log(`📝 Actualizando ID ${id} con Pago: ${metodo_pago} - $${monto_pago}`);
 
     const sql = `
         UPDATE Users 
@@ -250,20 +250,20 @@ app.put('/api/Users/:id', (req, res) => {
             F_INGRESO = ?, F_VENCIMIENTO = ?, ESTADO = ?, F_N = ?, 
             EDAD = ?, SEXO = ?, F_EXAMEN_LABORATORIO = ?, 
             F_CITA_NUTRICION = ?, F_CITA_MED_DEPORTIVA = ?, DIRECCION_O_BARRIO = ?,
-            -- AGREGAR LAS COLUMNAS NUEVAS A LA CONSULTA SQL:
-            PLAN_INFO = ?, FECHA_PAGO = ?, NOTAS = ?
+            PLAN_INFO = ?, FECHA_PAGO = ?, NOTAS = ?,
+            METODO_PAGO = ?, MONTO_PAGO = ?  -- <--- NUEVAS COLUMNAS SQL
         WHERE id = ?
     `;
 
-    // Mapeo exacto de variables a columnas
     const values = [
         usuario, cedula, correo, telefono, plan,
         clean(f_ingreso), clean(f_vencimiento), estado, clean(f_nacimiento),
         clean(edad), sexo, clean(f_examen), clean(f_nutricion), clean(f_deportiva), direccion,
-        // AGREGAR LOS VALORES NUEVOS AL ARRAY (USANDO clean PARA LA FECHA):
         plan_info,
         clean(fecha_pago),
         notas,
+        clean(metodo_pago), // <--- VALOR METODO
+        clean(monto_pago),  // <--- VALOR MONTO
         id
     ];
 
@@ -272,8 +272,7 @@ app.put('/api/Users/:id', (req, res) => {
             console.error("❌ Error SQL:", err);
             return res.status(500).json({ success: false, message: 'Error en base de datos: ' + err.sqlMessage });
         }
-        console.log("✅ Filas afectadas:", result.changedRows);
-        res.json({ success: true, message: 'Datos guardados correctamente' });
+        res.json({ success: true, message: 'Datos y pago actualizados correctamente' });
     });
 });
 

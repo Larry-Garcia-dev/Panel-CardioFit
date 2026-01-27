@@ -7,22 +7,20 @@ let globalUserLimit = 3; // Límite por defecto (se ajustará a 1 si es cortesí
 const WHATSAPP_ASESOR = "573155774777";
 
 const otherServicesList = [
-    { name: "Baño Terapéutico", role: "Spa" },
+    { name: "Baño Terapéutico", role: "Spa" }, // Mantiene filtro de horas 8-11 y 4-7
     { name: "Masaje Terapéutico/Relajante", role: "Spa" },
-    // { name: "Fisioterapia (Paquete 10)", role: "Fisioterapia" },
     { name: "Fisioterapia (sesión / valoracion)", role: "Fisioterapia" },
     { name: "Análisis Biomecánico o Exámenes (MAPA, Holter)", role: "Fisioterapia" },
     { name: "Electrocardiograma", role: "Fisioterapia" },
     { name: "Monitoreo Holter (24h)", role: "Fisioterapia" },
     { name: "Monitoreo Presión Arterial", role: "Fisioterapia" },
-    { name: "Circuito Recuperación", role: "Entrenador" },
+    { name: "Circuito Recuperación", role: "Spa" }, // Lógica especial: 2 horas consecutivas
     { name: "Masaje Rejuvenecimiento Facial", role: "Spa" },
     { name: "Terapia de Compresión", role: "Spa" },
     { name: "Infrarrojo", role: "Fisioterapia" },
-    { name: "Entrenamiento Simulador", role: "Entrenador" },
+    { name: "Entrenamiento Simulador", role: "CONTACT_ONLY_GENERIC" }, // Contacto genérico
     { name: "Sauna Infrarrojo (40min)", role: "Spa" },
-    // --- NUEVO: SERVICIO LORENA ---
-    { name: "Consulta Cardiología o Nutrición", role: "CONTACT_ONLY" }
+    { name: "Consulta Cardiología o Nutrición", role: "CONTACT_ONLY" } // Contacto Lorena
 ];
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -283,28 +281,19 @@ function showOtherServices() {
 }
 
 function selectService(dbRole, serviceName) {
-    // === REGLA LORENA: REDIRECCIÓN WHATSAPP ===
+    // === REGLA LORENA (CONTACT_ONLY): REDIRECCIÓN WHATSAPP ===
     if (dbRole === "CONTACT_ONLY") {
         const message = `Hola, me interesa el servicio de ${serviceName} con la Dra. Lorena Gonzalez. Quisiera más información.`;
         const url = `https://wa.me/${WHATSAPP_ASESOR}?text=${encodeURIComponent(message)}`;
+        showWhatsappRedirect(url, "Este servicio requiere una valoración previa con la Dra. Lorena.");
+        return;
+    }
 
-        Swal.fire({
-            title: 'Atención Especializada',
-            html: `
-                <div class="text-center">
-                    <p class="text-gray-600 mb-6 text-sm">Este servicio requiere una valoración previa.</p>
-                    <a href="${url}" target="_blank" 
-                       class="bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-6 rounded-xl flex items-center justify-center gap-2 transition transform hover:scale-105 shadow-lg w-full">
-                        <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372s-1.04 1.016-1.04 2.479 1.065 2.876 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414z"/></svg>
-                        Comunicar con Asesor
-                    </a>
-                </div>
-            `,
-            icon: 'info',
-            showConfirmButton: false,
-            showCloseButton: true,
-            customClass: { popup: 'rounded-2xl' }
-        });
+    // === REGLA SIMULADOR (CONTACT_ONLY_GENERIC): REDIRECCIÓN WHATSAPP GENÉRICA ===
+    if (dbRole === "CONTACT_ONLY_GENERIC") {
+        const message = `Hola, estoy interesado en el ${serviceName}. Quisiera más información y agendar.`;
+        const url = `https://wa.me/${WHATSAPP_ASESOR}?text=${encodeURIComponent(message)}`;
+        showWhatsappRedirect(url, "Comunícate con un asesor para programar tu sesión en el simulador.");
         return;
     }
 
@@ -323,16 +312,36 @@ function selectService(dbRole, serviceName) {
     }
 }
 
+function showWhatsappRedirect(url, text) {
+    Swal.fire({
+        title: 'Atención Especializada',
+        html: `
+            <div class="text-center">
+                <p class="text-gray-600 mb-6 text-sm">${text}</p>
+                <a href="${url}" target="_blank" 
+                   class="bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-6 rounded-xl flex items-center justify-center gap-2 transition transform hover:scale-105 shadow-lg w-full">
+                    <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372s-1.04 1.016-1.04 2.479 1.065 2.876 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414z"/></svg>
+                Comunicar con Asesor
+            </a>
+        </div>
+    `,
+        icon: 'info',
+        showConfirmButton: false,
+        showCloseButton: true,
+        customClass: { popup: 'rounded-2xl' }
+    });
+}
+
 function proceedSelection(dbRole, serviceName) {
     document.getElementById('gRole').value = dbRole;
     document.getElementById('gServiceName').value = serviceName;
     document.getElementById('serviceTitleDisplay').innerText = serviceName;
 
     showStep('stepTime');
-    loadServiceHours(dbRole);
+    loadServiceHours(dbRole, serviceName); // Se pasa serviceName
 }
 
-function loadServiceHours(role) {
+function loadServiceHours(role, serviceName) {
     const grid = document.getElementById('timeGrid');
     const loader = document.getElementById('timeLoader');
     grid.innerHTML = '';
@@ -341,7 +350,7 @@ function loadServiceHours(role) {
     fetch('/api/public/get-service-hours', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ role: role })
+        body: JSON.stringify({ role: role, serviceName: serviceName }) // Envío del nombre del servicio
     })
         .then(res => res.json())
         .then(data => {
@@ -432,22 +441,16 @@ function toggleDate(checkbox) {
 
     if (checkbox.checked) {
         // === REGLA: Límite dinámico ===
-        // Si es Cortesía: 1 cita máximo (global)
-        // Si es Activo y Entrenador: 3 citas máximo
-        // Si es Activo y Otro servicio: Ilimitado (frontend libre, backend valida disponibilidad)
-
-        let limit = globalUserLimit; // Por defecto 3 (Activo) o 1 (Cortesía)
+        let limit = globalUserLimit; 
 
         if (!isCourtesy && role !== 'Entrenador') {
-            limit = 99; // Permitir selección ilimitada visualmente para no entrenamientos
+            limit = 99; 
         }
 
-        // Cálculo: Citas actuales + Seleccionadas ahora + 1 (la nueva)
         const potentialTotal = globalUserActiveAppointments + selectedDates.size + 1;
 
-        // Solo aplicar bloqueo si supera el límite Y es un servicio restringido (o cortesía)
         if (potentialTotal > limit) {
-            checkbox.checked = false; // Desmarcar visualmente
+            checkbox.checked = false; 
 
             let title = 'Límite Alcanzado';
             let msg = '';
@@ -499,6 +502,10 @@ function confirmBatchBooking() {
     let textSwal = 'Se intentarán agendar las fechas seleccionadas.';
     if (serviceName === "Clase de Cortesía") {
         textSwal = 'Recuerda llegar 30 min antes. ¿Confirmar reservas?';
+    }
+    // Aviso para Circuito de Recuperación
+    if (serviceName === "Circuito Recuperación") {
+        textSwal = 'Este servicio reserva 2 horas consecutivas. ¿Confirmar?';
     }
 
     Swal.fire({
