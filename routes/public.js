@@ -184,75 +184,99 @@ router.post('/get-available-days', async (req, res) => {
     const nextTime = (requestHour + 1).toString().padStart(2, '0') + ":00:00";
 
     try {
-        for (let i = 0; i < 45; i++) {
-            let d = new Date(now);
-            d.setDate(now.getDate() + i); 
-            
-            let dayOfWeek = d.getDay() === 0 ? 7 : d.getDay();
-            if (dayOfWeek === 7) continue; 
+        //:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+       for (let i = 0; i < 45; i++) {
+    // 1. Crear fecha base y sumarle los días
+    let d = new Date(now);
+    d.setDate(now.getDate() + i); 
+    
+    // 2. Extraer componentes locales para evitar desfases de zona horaria (UTC vs Local)
+    let year = d.getFullYear();
+    let month = String(d.getMonth() + 1).padStart(2, '0');
+    let day = String(d.getDate()).padStart(2, '0');
+    
+    // dateStr debe ser estrictamente YYYY-MM-DD local
+    let dateStr = `${year}-${month}-${day}`;
 
-            let dateStr = d.toISOString().split('T')[0];
-            if (i === 0 && requestHour <= currentHour) continue;
+    // 3. Calcular día de la semana (1=Lunes, 7=Domingo)
+    let dayOfWeek = d.getDay() === 0 ? 7 : d.getDay();
+    if (dayOfWeek === 7) continue; 
 
-            // BUSCAR STAFF DISPONIBLE
-            const staffWorking = await query(`
-                SELECT s.id, ws.max_capacity 
-                FROM Staff s
-                JOIN WeeklySchedules ws ON s.id = ws.staff_id
-                WHERE s.role = ? AND s.is_active = 1
-                  AND ws.day_of_week = ?
-                  AND ? >= ws.start_time AND ? < ws.end_time
-            `, [dbRole, dayOfWeek, time, time]);
+    // 4. Validar si es hoy y la hora ya pasó
+    if (i === 0 && requestHour <= currentHour) continue;
 
-            let hasSpace = false;
+    // BUSCAR STAFF DISPONIBLE
+    const staffWorking = await query(`
+        SELECT s.id, ws.max_capacity 
+        FROM Staff s
+        JOIN WeeklySchedules ws ON s.id = ws.staff_id
+        WHERE s.role = ? AND s.is_active = 1
+          AND ws.day_of_week = ?
+          AND ? >= ws.start_time AND ? < ws.end_time
+    `, [dbRole, dayOfWeek, time, time]);
 
-            for (const staff of staffWorking) {
-                if (!isValidDateRule(staff.id, d, serviceName || role)) continue;
+    let hasSpace = false;
 
-                // 1. Validar Hora 1
-                const ocupacion1 = await query(`
-                    SELECT COUNT(*) as total, MAX(is_locking) as locked
-                    FROM Appointments 
-                    WHERE staff_id = ? AND appointment_date = ? AND start_time = ? AND status = 'confirmed'
-                `, [staff.id, dateStr, time]);
+    for (const staff of staffWorking) {
+        // Importante: pasar d (que mantiene el contexto local) a la función de reglas
+        if (!isValidDateRule(staff.id, d, serviceName || role)) continue;
 
-                const isLocked1 = ocupacion1[0].locked == 1;
-                const count1 = ocupacion1[0].total;
-                
-                let slot1Ok = false;
-                if (isPersonalized) slot1Ok = (!isLocked1 && count1 === 0);
-                else slot1Ok = (!isLocked1 && count1 < staff.max_capacity);
+        // 1. Validar Hora 1
+        const ocupacion1 = await query(`
+            SELECT COUNT(*) as total, MAX(is_locking) as locked
+            FROM Appointments 
+            WHERE staff_id = ? AND appointment_date = ? AND start_time = ? AND status = 'confirmed'
+        `, [staff.id, dateStr, time]);
 
-                if (!slot1Ok) continue; 
-
-                // 2. Validar Hora 2 (Si es Circuito)
-                if (isDoubleSlot) {
-                    const ocupacion2 = await query(`
-                        SELECT COUNT(*) as total, MAX(is_locking) as locked
-                        FROM Appointments 
-                        WHERE staff_id = ? AND appointment_date = ? AND start_time = ? AND status = 'confirmed'
-                    `, [staff.id, dateStr, nextTime]);
-
-                    const isLocked2 = ocupacion2[0].locked == 1;
-                    const count2 = ocupacion2[0].total;
-                    
-                    let slot2Ok = (!isLocked2 && count2 < staff.max_capacity);
-                    
-                    if (!slot2Ok) continue; 
-                }
-
-                hasSpace = true;
-                break;
-            }
-
-            if (hasSpace) {
-                availableDays.push({
-                    dateStr: dateStr,
-                    displayDate: d.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })
-                });
-            }
-            if (availableDays.length >= 7) break;
+        const isLocked1 = ocupacion1[0].locked == 1;
+        const count1 = ocupacion1[0].total;
+        
+        let slot1Ok = false;
+        if (isPersonalized) {
+            slot1Ok = (!isLocked1 && count1 === 0);
+        } else {
+            slot1Ok = (!isLocked1 && count1 < staff.max_capacity);
         }
+
+        if (!slot1Ok) continue; 
+
+        // 2. Validar Hora 2 (Si es Circuito de Recuperación)
+        if (isDoubleSlot) {
+            const ocupacion2 = await query(`
+                SELECT COUNT(*) as total, MAX(is_locking) as locked
+                FROM Appointments 
+                WHERE staff_id = ? AND appointment_date = ? AND start_time = ? AND status = 'confirmed'
+            `, [staff.id, dateStr, nextTime]);
+
+            const isLocked2 = ocupacion2[0].locked == 1;
+            const count2 = ocupacion2[0].total;
+            let slot2Ok = (!isLocked2 && count2 < staff.max_capacity);
+            
+            if (!slot2Ok) continue; 
+        }
+
+        hasSpace = true;
+        break;
+    }
+
+    if (hasSpace) {
+        // Generar displayDate forzando la zona horaria de Colombia para el texto
+        const displayDate = d.toLocaleDateString('es-ES', { 
+            weekday: 'long', 
+            day: 'numeric', 
+            month: 'long',
+            timeZone: 'America/Bogota' 
+        });
+
+        availableDays.push({
+            dateStr: dateStr, // "2026-02-03"
+            displayDate: displayDate // "martes, 3 de febrero"
+        });
+    }
+
+    if (availableDays.length >= 7) break;
+}
+        //:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
         res.json({ success: true, days: availableDays });
     } catch (e) { res.status(500).json({ error: 'Error calculando días' }); }
 });
@@ -319,44 +343,55 @@ router.post('/confirm-booking-batch', async (req, res) => {
         let duration = '01:00:00';
         if (isDoubleSlot) duration = '02:00:00';
 
-        for (const date of dates) {
-            const dObj = new Date(date + 'T12:00:00');
+        //:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+       for (const date of dates) {
+            // 1. IMPORTANTE: Forzamos el offset de Colombia (-05:00) al crear el objeto de fecha.
+            // Esto garantiza que dObj.getDay() devuelva el día correcto de la semana en Colombia.
+            const dObj = new Date(`${date}T12:00:00-05:00`); 
+            
             const dayOfWeek = dObj.getDay() === 0 ? 7 : dObj.getDay();
             let selectedStaff = null;
 
-            // Buscar Candidatos
+            // Buscar Candidatos (Staff que trabaje ese día y a esa hora)
             const candidates = await query(`
                 SELECT s.id, s.name, ws.max_capacity 
                 FROM Staff s
                 JOIN WeeklySchedules ws ON s.id = ws.staff_id
                 WHERE s.role = ? AND ws.day_of_week = ?
                   AND ? >= ws.start_time AND ? < ws.end_time
+                  AND s.is_active = 1
                 ORDER BY s.priority_order ASC
             `, [dbRole, dayOfWeek, time, time]);
 
             for (const staff of candidates) {
+                // Pasamos dObj que ya está sincronizado con la hora de Colombia
                 if (!isValidDateRule(staff.id, dObj, serviceName || role)) continue;
 
                 // 1. Validar Hora 1
                 const ocupacion1 = await query(`
                     SELECT COUNT(*) as total, MAX(is_locking) as locked
-                    FROM Appointments WHERE staff_id = ? AND appointment_date = ? AND start_time = ? AND status = 'confirmed'
+                    FROM Appointments 
+                    WHERE staff_id = ? AND appointment_date = ? AND start_time = ? AND status = 'confirmed'
                 `, [staff.id, date, time]);
 
                 const isLocked1 = ocupacion1[0].locked == 1;
                 const count1 = ocupacion1[0].total;
                 let slot1Ok = false;
 
-                if (isPersonalized) slot1Ok = (!isLocked1 && count1 === 0);
-                else slot1Ok = (!isLocked1 && count1 < staff.max_capacity);
+                if (isPersonalized) {
+                    slot1Ok = (!isLocked1 && count1 === 0);
+                } else {
+                    slot1Ok = (!isLocked1 && count1 < staff.max_capacity);
+                }
 
                 if (!slot1Ok) continue;
 
-                // 2. Validar Hora 2 (Si es Circuito)
+                // 2. Validar Hora 2 (Si el servicio es Circuito de Recuperación)
                 if (isDoubleSlot) {
                     const ocupacion2 = await query(`
                         SELECT COUNT(*) as total, MAX(is_locking) as locked
-                        FROM Appointments WHERE staff_id = ? AND appointment_date = ? AND start_time = ? AND status = 'confirmed'
+                        FROM Appointments 
+                        WHERE staff_id = ? AND appointment_date = ? AND start_time = ? AND status = 'confirmed'
                     `, [staff.id, date, nextTime]);
 
                     const isLocked2 = ocupacion2[0].locked == 1;
@@ -366,6 +401,7 @@ router.post('/confirm-booking-batch', async (req, res) => {
                     if (!slot2Ok) continue;
                 }
 
+                // Si pasó los filtros, asignamos este staff
                 selectedStaff = staff; 
                 break;
             }
@@ -373,7 +409,7 @@ router.post('/confirm-booking-batch', async (req, res) => {
             if (selectedStaff) {
                 const lockVal = isPersonalized ? 1 : 0;
                 
-                // INSERTAR CITA 1 (GUARDANDO service_name)
+                // INSERTAR CITA 1 (Usamos el string "date" directamente para que MySQL no lo altere)
                 const insert1 = await query(
                     `INSERT INTO Appointments (user_id, staff_id, appointment_date, start_time, end_time, status, is_locking, service_name)
                      VALUES (?, ?, ?, ?, ADDTIME(?, '01:00:00'), 'confirmed', ?, ?)`,
@@ -389,13 +425,14 @@ router.post('/confirm-booking-batch', async (req, res) => {
                     );
                 }
                 
+                // Agregamos a la lista de éxitos usando la fecha literal
                 results.booked.push({ date, time, staff: selectedStaff.name });
 
-                // ENVÍO WEBHOOKS
+                // ENVÍO DE WEBHOOKS
                 const webhookPayload = {
                     mensaje: `Nueva Reserva: ${serviceName}`,
                     cita_id: insert1.insertId,
-                    fecha: date,
+                    fecha: date, // Enviamos el string literal YYYY-MM-DD
                     hora: time,
                     servicio: serviceName,
                     staff_asignado: selectedStaff.name,
@@ -414,9 +451,10 @@ router.post('/confirm-booking-batch', async (req, res) => {
                 axios.post(DEFAULT_WEBHOOK_URL, webhookPayload).catch(e => console.error("Default Webhook Error:", e.message));
 
             } else {
-                results.failed.push({ date, time, reason: "Cupo lleno" });
+                results.failed.push({ date, time, reason: "Cupo lleno o regla de horario incumplida" });
             }
         }
+        //:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
         res.json({ success: true, results: results });
 
     } catch (e) {
@@ -426,32 +464,48 @@ router.post('/confirm-booking-batch', async (req, res) => {
 });
 
 // 6. MIS CITAS
+// routes/public.js
+
+// 6. MIS CITAS (CORREGIDO)
 router.get('/my-appointments/:userId', async (req, res) => {
     try {
         const { userId } = req.params;
+        
+        // Obtenemos la fecha y hora exacta de Colombia para la comparación
         const now = getColombiaDate();
-        const currentDate = now.toISOString().split('T')[0];
+        const currentDate = now.getFullYear() + '-' + 
+                           String(now.getMonth() + 1).padStart(2, '0') + '-' + 
+                           String(now.getDate()).padStart(2, '0');
         const currentTime = now.toTimeString().split(' ')[0];
 
+        // La consulta ahora filtra basándose en la fecha local literal
         const results = await query(`
             SELECT a.id, a.appointment_date, a.start_time, s.name as staff_name, s.role, a.service_name
             FROM Appointments a
             JOIN Staff s ON a.staff_id = s.id
             WHERE a.user_id = ? 
               AND a.status = 'confirmed'
-              AND (a.appointment_date > ? OR (a.appointment_date = ? AND a.start_time > ?))
-            ORDER BY a.appointment_date ASC
+              AND (a.appointment_date > ? OR (a.appointment_date = ? AND a.start_time >= ?))
+            ORDER BY a.appointment_date ASC, a.start_time ASC
         `, [userId, currentDate, currentDate, currentTime]);
         
         res.json({ success: true, appointments: results });
-    } catch (e) { res.status(500).json({ success: false }); }
+    } catch (e) { 
+        console.error("Error en my-appointments:", e);
+        res.status(500).json({ success: false }); 
+    }
 });
 
+// CANCELAR CITA (SE MANTIENE IGUAL PERO ASEGURAMOS ACCESO)
 router.delete('/cancel-appointment/:id', async (req, res) => {
     try {
+        // Eliminamos físicamente o podrías cambiar el status a 'cancelled'
         await query('DELETE FROM Appointments WHERE id = ?', [req.params.id]);
         res.json({ success: true });
-    } catch (e) { res.status(500).json({ success: false }); }
+    } catch (e) { 
+        console.error("Error cancelando cita:", e);
+        res.status(500).json({ success: false }); 
+    }
 });
 
 module.exports = router;

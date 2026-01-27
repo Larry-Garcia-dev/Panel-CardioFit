@@ -203,12 +203,17 @@ function showMyAppointments() {
         });
 }
 
+// public/booking.js
+
 function renderAppointments(appointments) {
     const container = document.getElementById('appointmentsListContainer');
     container.innerHTML = '';
 
     appointments.forEach(appt => {
-        const dateObj = new Date(appt.appointment_date);
+        // Corregimos la interpretación de la fecha para que no salte de día al mostrarla
+        const dateParts = appt.appointment_date.split('T')[0].split('-');
+        const dateObj = new Date(dateParts[0], dateParts[1] - 1, dateParts[2]);
+        
         const day = dateObj.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'short' });
 
         const [h, m] = appt.start_time.split(':');
@@ -218,16 +223,20 @@ function renderAppointments(appointments) {
         const timeStr = `${hour12}:${m} ${ampm}`;
 
         const card = document.createElement('div');
-        card.className = "bg-white border border-gray-200 p-4 rounded-xl shadow-sm flex justify-between items-center";
+        card.className = "bg-white border border-gray-200 p-4 rounded-xl shadow-sm flex justify-between items-center slide-up";
 
         card.innerHTML = `
             <div>
                 <p class="font-bold text-gray-800 capitalize">${day}</p>
                 <p class="text-2xl font-black text-blue-600">${timeStr}</p>
-                <p class="text-xs text-gray-500 mt-1 uppercase tracking-wider">${appt.staff_name}</p>
+                <p class="text-xs text-gray-500 mt-1 uppercase tracking-wider">
+                    ${appt.service_name || 'Servicio'} con ${appt.staff_name}
+                </p>
             </div>
-            <button onclick="cancelMyAppointment(${appt.id})" class="text-red-500 hover:bg-red-50 p-2 rounded-full transition" title="Cancelar Cita">
-                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+            <button onclick="cancelMyAppointment(${appt.id})" class="text-red-500 hover:bg-red-50 p-2 rounded-full transition">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                </svg>
             </button>
         `;
         container.appendChild(card);
@@ -384,7 +393,7 @@ function selectTime(timeVal, displayTime) {
     showStep('stepDay');
     loadDays();
 }
-
+//::::::::::::::::::::::::::::::
 function loadDays() {
     const list = document.getElementById('daysList');
     const loader = document.getElementById('loadingDays');
@@ -404,18 +413,20 @@ function loadDays() {
             serviceName: document.getElementById('gServiceName').value
         })
     })
-        .then(res => res.json())
-        .then(data => {
-            loader.classList.add('hidden');
-            if (!data.days || data.days.length === 0) {
-                noDays.classList.remove('hidden');
-                return;
-            }
-            list.classList.remove('hidden');
-            data.days.forEach(day => {
-                const label = document.createElement('label');
-                label.className = "block cursor-pointer tap-highlight-transparent";
-                label.innerHTML = `
+    .then(res => res.json())
+    .then(data => {
+        loader.classList.add('hidden');
+        if (!data.days || data.days.length === 0) {
+            noDays.classList.remove('hidden');
+            return;
+        }
+        list.classList.remove('hidden');
+        data.days.forEach(day => {
+            const label = document.createElement('label');
+            label.className = "block cursor-pointer tap-highlight-transparent";
+            
+            // Usamos directamente day.dateStr que viene del servidor como "YYYY-MM-DD"
+            label.innerHTML = `
                 <input type="checkbox" value="${day.dateStr}" class="hidden day-check" onchange="toggleDate(this)">
                 <div class="border border-gray-200 bg-white p-4 rounded-xl flex justify-between items-center transition-all hover:bg-gray-50 shadow-sm">
                     <span class="font-bold text-gray-700 text-lg capitalize">${day.displayDate}</span>
@@ -426,11 +437,11 @@ function loadDays() {
                     </div>
                 </div>
             `;
-                list.appendChild(label);
-            });
+            list.appendChild(label);
         });
+    });
 }
-
+//..................................
 function toggleDate(checkbox) {
     const container = checkbox.nextElementSibling;
     const circle = container.querySelector('.check-circle');
