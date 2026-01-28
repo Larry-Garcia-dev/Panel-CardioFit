@@ -606,6 +606,17 @@ app.get('/api/appointments/staff-range', (req, res) => {
     });
 });
 
+// ========================================== Sauna gratis===========================================
+app.get(['/:phone', '/:phone/saunagratis'], (req, res, next) => {
+    const phone = req.params.phone;
+    
+    // Validaciones de seguridad existentes
+    if (phone.includes('.') || phone.startsWith('api') || phone === 'favicon.ico') return next();
+
+    // Servir el mismo archivo HTML, el frontend leerá la URL para saber si activa la promo
+    res.sendFile(path.join(__dirname, 'public', 'booking.html'));
+});
+
 
 db.getConnection((err, connection) => {
     if (err) {

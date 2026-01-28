@@ -5,6 +5,7 @@ let selectedDates = new Set();
 let globalUserActiveAppointments = 0;
 let globalUserLimit = 3; // Límite por defecto (se ajustará a 1 si es cortesía)
 const WHATSAPP_ASESOR = "573155774777";
+let isPromoMode = false; // <--- NUEVA VARIABLE PARA CONTROLAR EL MODO SAUNA GRATIS
 
 const otherServicesList = [
     { name: "Baño Terapéutico", role: "Spa" }, // Mantiene filtro de horas 8-11 y 4-7
@@ -24,8 +25,17 @@ const otherServicesList = [
 ];
 
 document.addEventListener('DOMContentLoaded', () => {
-    const rawPath = window.location.pathname.substring(1);
-    const phone = decodeURIComponent(rawPath);
+    // 1. Detectar y limpiar URL
+    const rawPath = window.location.pathname;
+    
+    // Detectar si la URL contiene /saunagratis (ignorando mayúsculas/minúsculas)
+    if (rawPath.toLowerCase().includes('/saunagratis')) {
+        isPromoMode = true;
+    }
+
+    // Limpiar la URL para obtener solo el teléfono (quitamos /saunagratis y las barras /)
+    let phonePart = rawPath.replace(/\/saunagratis\/?$/i, '').replace(/^\//, '');
+    const phone = decodeURIComponent(phonePart);
 
     if (!phone || phone.includes('booking')) {
         document.getElementById('loader').classList.add('hidden');
@@ -96,6 +106,35 @@ function identifyUser(phone) {
 
                 // Guardar conteo de citas activas
                 globalUserActiveAppointments = user.future_appointments || 0;
+
+                // === NUEVA LÓGICA SAUNA GRATIS ===
+                if (isPromoMode) {
+                    if (user.SAUNA_CLAIMED == 1) {
+                        Swal.fire({
+                            title: 'Beneficio Redimido',
+                            text: 'Ya has disfrutado de tu Sauna Gratis anteriormente.',
+                            icon: 'info',
+                            confirmButtonColor: '#000',
+                            confirmButtonText: 'Entendido'
+                        });
+                        // No mostramos el botón especial, se muestra el menú normal
+                    } else {
+                        // Usuario apto: Inyectar botón especial al principio del menú
+                        const menuContainer = document.getElementById('menuExistingUsers');
+                        const promoBtnHtml = `
+                            <button onclick="selectService('Spa', 'Sauna Gratis')" 
+                                class="w-full text-left border-2 border-orange-200 bg-orange-50 p-5 rounded-2xl font-bold text-orange-800 hover:border-orange-500 transition flex items-center gap-4 active:scale-95 mb-4 shadow-md animate-pulse">
+                                <span class="text-3xl">🔥</span> 
+                                <div>
+                                    <span class="block text-lg">¡Tienes un Sauna Gratis!</span>
+                                    <span class="text-xs font-normal uppercase tracking-wider">Click aquí para agendar</span>
+                                </div>
+                            </button>
+                        `;
+                        menuContainer.insertAdjacentHTML('afterbegin', promoBtnHtml);
+                    }
+                }
+                // ==================================
 
                 showMenu('existing');
             } else {
@@ -202,8 +241,6 @@ function showMyAppointments() {
             container.innerHTML = `<p class="text-center text-red-500">Error cargando citas.</p>`;
         });
 }
-
-// public/booking.js
 
 function renderAppointments(appointments) {
     const container = document.getElementById('appointmentsListContainer');

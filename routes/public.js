@@ -39,11 +39,11 @@ function isValidDateRule(staffId, dateObj, serviceType) {
 
         // Sábados Quincenales (Fisio) - Desde 10 Ene 2026
         if (dayOfWeek === 6) {
-            if (!isFisio) return false; 
+            if (!isFisio) return false;
             const startDate = new Date('2026-01-10T00:00:00');
             const diffTime = dateObj.getTime() - startDate.getTime();
             const weeksPassed = Math.floor(diffTime / (1000 * 60 * 60 * 24 * 7));
-            if (weeksPassed % 2 !== 0) return false; 
+            if (weeksPassed % 2 !== 0) return false;
         }
 
         // Fisioterapia: Lunes y Sábados
@@ -63,38 +63,38 @@ function isValidDateRule(staffId, dateObj, serviceType) {
 // =========================================================================
 router.get('/identify/:phone', async (req, res) => {
     try {
-        let input = req.params.phone.replace(/\D/g, ''); 
+        let input = req.params.phone.replace(/\D/g, '');
         let phoneClean = input;
-        if(input.startsWith('57') && input.length > 10) phoneClean = input.substring(2);
-        
-        const variants = [input, phoneClean, '+'+input, '+57'+phoneClean];
-        
+        if (input.startsWith('57') && input.length > 10) phoneClean = input.substring(2);
+
+        const variants = [input, phoneClean, '+' + input, '+57' + phoneClean];
+
         const now = getColombiaDate();
         const currentDate = now.toISOString().split('T')[0];
         const currentTime = now.toTimeString().split(' ')[0];
 
         const sql = `
-            SELECT u.*, 
-            (SELECT COUNT(*) FROM Appointments a 
-             WHERE a.user_id = u.id 
-             AND a.status = 'confirmed'
-             AND (a.appointment_date > ? OR (a.appointment_date = ? AND a.start_time > ?))
-            ) as future_appointments
-            FROM Users u 
-            WHERE TELEFONO IN (?, ?, ?, ?) 
-            LIMIT 1
+      SELECT u.*, u.SAUNA_CLAIMED,
+     (SELECT COUNT(*) FROM Appointments a 
+     WHERE a.user_id = u.id 
+     AND a.status = 'confirmed'
+     AND (a.appointment_date > ? OR (a.appointment_date = ? AND a.start_time > ?))
+     ) as future_appointments
+     FROM Users u 
+     WHERE TELEFONO IN (?, ?, ?, ?) 
+        LIMIT 1
         `;
 
         const users = await query(sql, [currentDate, currentDate, currentTime, ...variants]);
-        
+
         if (users.length > 0) {
             res.json({ found: true, user: users[0] });
         } else {
             res.json({ found: false, phoneClean: phoneClean });
         }
-    } catch (e) { 
+    } catch (e) {
         console.error(e);
-        res.status(500).json({ error: 'Error interno identificando usuario' }); 
+        res.status(500).json({ error: 'Error interno identificando usuario' });
     }
 });
 
@@ -104,9 +104,9 @@ router.get('/identify/:phone', async (req, res) => {
 router.post('/quick-register', async (req, res) => {
     try {
         let { nombre, cedula, correo, telefono } = req.body;
-        
-        let telLimpio = telefono.replace(/\D/g, ''); 
-        if(telLimpio.startsWith('57') && telLimpio.length > 10) {
+
+        let telLimpio = telefono.replace(/\D/g, '');
+        if (telLimpio.startsWith('57') && telLimpio.length > 10) {
             telLimpio = telLimpio.substring(2);
         }
 
@@ -115,16 +115,16 @@ router.post('/quick-register', async (req, res) => {
             await query('UPDATE Users SET TELEFONO = ? WHERE id = ?', [telLimpio, exists[0].id]);
             return res.json({ success: true, userId: exists[0].id, usuario: nombre });
         }
-        
+
         const result = await query(
             `INSERT INTO Users (USUARIO, N_CEDULA, CORREO_ELECTRONICO, TELEFONO, ESTADO, PLAN, F_INGRESO)
              VALUES (?, ?, ?, ?, 'ACTIVO', 'Cortesía/Nuevo', CURDATE())`,
             [nombre, cedula, correo, telLimpio]
         );
         res.json({ success: true, userId: result.insertId, usuario: nombre });
-    } catch (e) { 
+    } catch (e) {
         console.error(e);
-        res.status(500).json({ success: false, message: 'Error registrando usuario' }); 
+        res.status(500).json({ success: false, message: 'Error registrando usuario' });
     }
 });
 
@@ -142,7 +142,7 @@ router.post('/get-service-hours', async (req, res) => {
             JOIN Staff s ON ws.staff_id = s.id
             WHERE s.role = ? AND s.is_active = 1
         `, [dbRole]);
-        
+
         const hourSet = new Set();
         schedules.forEach(sch => {
             let start = parseInt(sch.start_time.split(':')[0]);
@@ -185,28 +185,28 @@ router.post('/get-available-days', async (req, res) => {
 
     try {
         //:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
-       for (let i = 0; i < 45; i++) {
-    // 1. Crear fecha base y sumarle los días
-    let d = new Date(now);
-    d.setDate(now.getDate() + i); 
-    
-    // 2. Extraer componentes locales para evitar desfases de zona horaria (UTC vs Local)
-    let year = d.getFullYear();
-    let month = String(d.getMonth() + 1).padStart(2, '0');
-    let day = String(d.getDate()).padStart(2, '0');
-    
-    // dateStr debe ser estrictamente YYYY-MM-DD local
-    let dateStr = `${year}-${month}-${day}`;
+        for (let i = 0; i < 45; i++) {
+            // 1. Crear fecha base y sumarle los días
+            let d = new Date(now);
+            d.setDate(now.getDate() + i);
 
-    // 3. Calcular día de la semana (1=Lunes, 7=Domingo)
-    let dayOfWeek = d.getDay() === 0 ? 7 : d.getDay();
-    if (dayOfWeek === 7) continue; 
+            // 2. Extraer componentes locales para evitar desfases de zona horaria (UTC vs Local)
+            let year = d.getFullYear();
+            let month = String(d.getMonth() + 1).padStart(2, '0');
+            let day = String(d.getDate()).padStart(2, '0');
 
-    // 4. Validar si es hoy y la hora ya pasó
-    if (i === 0 && requestHour <= currentHour) continue;
+            // dateStr debe ser estrictamente YYYY-MM-DD local
+            let dateStr = `${year}-${month}-${day}`;
 
-    // BUSCAR STAFF DISPONIBLE
-    const staffWorking = await query(`
+            // 3. Calcular día de la semana (1=Lunes, 7=Domingo)
+            let dayOfWeek = d.getDay() === 0 ? 7 : d.getDay();
+            if (dayOfWeek === 7) continue;
+
+            // 4. Validar si es hoy y la hora ya pasó
+            if (i === 0 && requestHour <= currentHour) continue;
+
+            // BUSCAR STAFF DISPONIBLE
+            const staffWorking = await query(`
         SELECT s.id, ws.max_capacity 
         FROM Staff s
         JOIN WeeklySchedules ws ON s.id = ws.staff_id
@@ -215,67 +215,67 @@ router.post('/get-available-days', async (req, res) => {
           AND ? >= ws.start_time AND ? < ws.end_time
     `, [dbRole, dayOfWeek, time, time]);
 
-    let hasSpace = false;
+            let hasSpace = false;
 
-    for (const staff of staffWorking) {
-        // Importante: pasar d (que mantiene el contexto local) a la función de reglas
-        if (!isValidDateRule(staff.id, d, serviceName || role)) continue;
+            for (const staff of staffWorking) {
+                // Importante: pasar d (que mantiene el contexto local) a la función de reglas
+                if (!isValidDateRule(staff.id, d, serviceName || role)) continue;
 
-        // 1. Validar Hora 1
-        const ocupacion1 = await query(`
+                // 1. Validar Hora 1
+                const ocupacion1 = await query(`
             SELECT COUNT(*) as total, MAX(is_locking) as locked
             FROM Appointments 
             WHERE staff_id = ? AND appointment_date = ? AND start_time = ? AND status = 'confirmed'
         `, [staff.id, dateStr, time]);
 
-        const isLocked1 = ocupacion1[0].locked == 1;
-        const count1 = ocupacion1[0].total;
-        
-        let slot1Ok = false;
-        if (isPersonalized) {
-            slot1Ok = (!isLocked1 && count1 === 0);
-        } else {
-            slot1Ok = (!isLocked1 && count1 < staff.max_capacity);
-        }
+                const isLocked1 = ocupacion1[0].locked == 1;
+                const count1 = ocupacion1[0].total;
 
-        if (!slot1Ok) continue; 
+                let slot1Ok = false;
+                if (isPersonalized) {
+                    slot1Ok = (!isLocked1 && count1 === 0);
+                } else {
+                    slot1Ok = (!isLocked1 && count1 < staff.max_capacity);
+                }
 
-        // 2. Validar Hora 2 (Si es Circuito de Recuperación)
-        if (isDoubleSlot) {
-            const ocupacion2 = await query(`
+                if (!slot1Ok) continue;
+
+                // 2. Validar Hora 2 (Si es Circuito de Recuperación)
+                if (isDoubleSlot) {
+                    const ocupacion2 = await query(`
                 SELECT COUNT(*) as total, MAX(is_locking) as locked
                 FROM Appointments 
                 WHERE staff_id = ? AND appointment_date = ? AND start_time = ? AND status = 'confirmed'
             `, [staff.id, dateStr, nextTime]);
 
-            const isLocked2 = ocupacion2[0].locked == 1;
-            const count2 = ocupacion2[0].total;
-            let slot2Ok = (!isLocked2 && count2 < staff.max_capacity);
-            
-            if (!slot2Ok) continue; 
+                    const isLocked2 = ocupacion2[0].locked == 1;
+                    const count2 = ocupacion2[0].total;
+                    let slot2Ok = (!isLocked2 && count2 < staff.max_capacity);
+
+                    if (!slot2Ok) continue;
+                }
+
+                hasSpace = true;
+                break;
+            }
+
+            if (hasSpace) {
+                // Generar displayDate forzando la zona horaria de Colombia para el texto
+                const displayDate = d.toLocaleDateString('es-ES', {
+                    weekday: 'long',
+                    day: 'numeric',
+                    month: 'long',
+                    timeZone: 'America/Bogota'
+                });
+
+                availableDays.push({
+                    dateStr: dateStr, // "2026-02-03"
+                    displayDate: displayDate // "martes, 3 de febrero"
+                });
+            }
+
+            if (availableDays.length >= 7) break;
         }
-
-        hasSpace = true;
-        break;
-    }
-
-    if (hasSpace) {
-        // Generar displayDate forzando la zona horaria de Colombia para el texto
-        const displayDate = d.toLocaleDateString('es-ES', { 
-            weekday: 'long', 
-            day: 'numeric', 
-            month: 'long',
-            timeZone: 'America/Bogota' 
-        });
-
-        availableDays.push({
-            dateStr: dateStr, // "2026-02-03"
-            displayDate: displayDate // "martes, 3 de febrero"
-        });
-    }
-
-    if (availableDays.length >= 7) break;
-}
         //:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
         res.json({ success: true, days: availableDays });
     } catch (e) { res.status(500).json({ error: 'Error calculando días' }); }
@@ -297,7 +297,7 @@ router.post('/confirm-booking-batch', async (req, res) => {
         const userRes = await query('SELECT * FROM Users WHERE id = ?', [userId]);
         if (userRes.length === 0) return res.json({ success: false, message: 'Usuario no encontrado.' });
         const user = userRes[0];
-        
+
         if ((user.ESTADO || '').toUpperCase() !== 'ACTIVO') {
             return res.json({ success: false, message: `Membresía ${user.ESTADO}. Contacta a soporte.` });
         }
@@ -319,11 +319,11 @@ router.post('/confirm-booking-batch', async (req, res) => {
                 WHERE user_id = ? AND status = 'confirmed' 
                 AND (appointment_date > ? OR (appointment_date = ? AND start_time > ?))
             `, [userId, currentDate, currentDate, currentTime]);
-            
+
             if (countAll[0].c + dates.length > 1) {
                 return res.json({ success: false, message: 'USUARIO DE CORTESÍA: Solo puedes tener 1 cita activa.' });
             }
-        } 
+        }
         else if (dbRole === 'Entrenador') {
             const countTrainings = await query(`
                 SELECT COUNT(*) as c FROM Appointments a
@@ -337,18 +337,18 @@ router.post('/confirm-booking-batch', async (req, res) => {
                 return res.json({ success: false, message: `LÍMITE ENTRENAMIENTO: Tienes ${countTrainings[0].c} citas activas. Máximo 3 permitidas.` });
             }
         }
-        
+
         // === PROCESO DE AGENDAMIENTO ===
         const results = { booked: [], failed: [] };
         let duration = '01:00:00';
         if (isDoubleSlot) duration = '02:00:00';
 
         //:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
-       for (const date of dates) {
+        for (const date of dates) {
             // 1. IMPORTANTE: Forzamos el offset de Colombia (-05:00) al crear el objeto de fecha.
             // Esto garantiza que dObj.getDay() devuelva el día correcto de la semana en Colombia.
-            const dObj = new Date(`${date}T12:00:00-05:00`); 
-            
+            const dObj = new Date(`${date}T12:00:00-05:00`);
+
             const dayOfWeek = dObj.getDay() === 0 ? 7 : dObj.getDay();
             let selectedStaff = null;
 
@@ -402,13 +402,13 @@ router.post('/confirm-booking-batch', async (req, res) => {
                 }
 
                 // Si pasó los filtros, asignamos este staff
-                selectedStaff = staff; 
+                selectedStaff = staff;
                 break;
             }
 
             if (selectedStaff) {
                 const lockVal = isPersonalized ? 1 : 0;
-                
+
                 // INSERTAR CITA 1 (Usamos el string "date" directamente para que MySQL no lo altere)
                 const insert1 = await query(
                     `INSERT INTO Appointments (user_id, staff_id, appointment_date, start_time, end_time, status, is_locking, service_name)
@@ -424,7 +424,14 @@ router.post('/confirm-booking-batch', async (req, res) => {
                         [userId, selectedStaff.id, date, nextTime, nextTime, lockVal, serviceName]
                     );
                 }
-                
+
+                // === LÓGICA SAUNA GRATIS (NUEVA) ===
+                // Si el servicio es "Sauna Gratis", actualizamos al usuario para que no pueda pedirlo de nuevo.
+                if (serviceName === 'Sauna Gratis') {
+                    await query('UPDATE Users SET SAUNA_CLAIMED = 1 WHERE id = ?', [userId]);
+                }
+                // ===================================
+
                 // Agregamos a la lista de éxitos usando la fecha literal
                 results.booked.push({ date, time, staff: selectedStaff.name });
 
@@ -446,7 +453,7 @@ router.post('/confirm-booking-batch', async (req, res) => {
                         cedula: user.N_CEDULA
                     }
                 };
-                
+
                 axios.post(WHATSAPP_WEBHOOK_URL, webhookPayload).catch(e => console.error("Whatsapp Webhook Error:", e.message));
                 axios.post(DEFAULT_WEBHOOK_URL, webhookPayload).catch(e => console.error("Default Webhook Error:", e.message));
 
@@ -470,12 +477,12 @@ router.post('/confirm-booking-batch', async (req, res) => {
 router.get('/my-appointments/:userId', async (req, res) => {
     try {
         const { userId } = req.params;
-        
+
         // Obtenemos la fecha y hora exacta de Colombia para la comparación
         const now = getColombiaDate();
-        const currentDate = now.getFullYear() + '-' + 
-                           String(now.getMonth() + 1).padStart(2, '0') + '-' + 
-                           String(now.getDate()).padStart(2, '0');
+        const currentDate = now.getFullYear() + '-' +
+            String(now.getMonth() + 1).padStart(2, '0') + '-' +
+            String(now.getDate()).padStart(2, '0');
         const currentTime = now.toTimeString().split(' ')[0];
 
         // La consulta ahora filtra basándose en la fecha local literal
@@ -488,11 +495,11 @@ router.get('/my-appointments/:userId', async (req, res) => {
               AND (a.appointment_date > ? OR (a.appointment_date = ? AND a.start_time >= ?))
             ORDER BY a.appointment_date ASC, a.start_time ASC
         `, [userId, currentDate, currentDate, currentTime]);
-        
+
         res.json({ success: true, appointments: results });
-    } catch (e) { 
+    } catch (e) {
         console.error("Error en my-appointments:", e);
-        res.status(500).json({ success: false }); 
+        res.status(500).json({ success: false });
     }
 });
 
@@ -502,9 +509,9 @@ router.delete('/cancel-appointment/:id', async (req, res) => {
         // Eliminamos físicamente o podrías cambiar el status a 'cancelled'
         await query('DELETE FROM Appointments WHERE id = ?', [req.params.id]);
         res.json({ success: true });
-    } catch (e) { 
+    } catch (e) {
         console.error("Error cancelando cita:", e);
-        res.status(500).json({ success: false }); 
+        res.status(500).json({ success: false });
     }
 });
 
