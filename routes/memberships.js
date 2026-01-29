@@ -18,7 +18,7 @@ router.get('/expiring', (req, res) => {
     });
 });
 
-// 2. NUEVO: Membresías YA VENCIDAS (Estado VENCIDO)
+// 2. Membresías YA VENCIDAS (Estado VENCIDO)
 router.get('/expired', (req, res) => {
     const sql = `
         SELECT *, DATEDIFF(CURDATE(), F_VENCIMIENTO) as dias_vencido
@@ -32,11 +32,47 @@ router.get('/expired', (req, res) => {
     });
 });
 
-// 3. Todos los usuarios
-router.get('/all', (req, res) => {
-    const sql = 'SELECT * FROM Users ORDER BY USUARIO ASC';
-    db.query(sql, (err, results) => {
-        if (err) return res.status(500).json({ error: 'Error DB' });
+// 3. BÚSQUEDA AVANZADA (FILTROS OPTIMIZADOS)
+router.get('/filter', (req, res) => {
+    const { paymentMethod, ingresoStart, ingresoEnd, pagoStart, pagoEnd } = req.query;
+
+    let sql = "SELECT * FROM Users WHERE 1=1";
+    const params = [];
+
+    // Filtro Método de Pago
+    if (paymentMethod && paymentMethod !== 'all') {
+        sql += " AND METODO_PAGO = ?";
+        params.push(paymentMethod);
+    }
+
+    // Filtro Fecha Ingreso
+    if (ingresoStart) {
+        sql += " AND F_INGRESO >= ?";
+        params.push(ingresoStart);
+    }
+    if (ingresoEnd) {
+        sql += " AND F_INGRESO <= ?";
+        params.push(ingresoEnd);
+    }
+
+    // Filtro Fecha Pago
+    if (pagoStart) {
+        sql += " AND FECHA_PAGO >= ?";
+        params.push(pagoStart);
+    }
+    if (pagoEnd) {
+        sql += " AND FECHA_PAGO <= ?";
+        params.push(pagoEnd);
+    }
+
+    // Ordenar por fecha de ingreso reciente y limitar a 100 para no bloquear el navegador
+    sql += " ORDER BY F_INGRESO DESC LIMIT 100";
+
+    db.query(sql, params, (err, results) => {
+        if (err) {
+            console.error("Error filtrando:", err);
+            return res.status(500).json({ error: 'Error en base de datos' });
+        }
         res.json(results);
     });
 });
