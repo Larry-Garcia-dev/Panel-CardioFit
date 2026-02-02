@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Directorio de Usuarios - CardioFit</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <link rel="shortcut icon" href="logo.jpg" type="image/x-icon">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .custom-scrollbar::-webkit-scrollbar { width: 8px; height: 8px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        
+        .label-form { display: block; font-size: 0.7rem; font-weight: 800; color: #64748b; text-transform: uppercase; margin-bottom: 4px; letter-spacing: 0.05em; }
+        .input-form { width: 100%; padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 8px; outline: none; font-size: 0.9rem; transition: all 0.2s; color: #334155; font-weight: 600; }
+        .input-form:focus { border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1); }
+    </style>
+</head>
+<body class="bg-slate-50 h-screen flex flex-col">
+
+    <nav class="bg-white border-b border-gray-200 px-6 py-3 flex justify-between items-center sticky top-0 z-30 shadow-sm">
+        <div class="flex items-center gap-4">
+            <a href="/index.html" class="bg-gray-100 hover:bg-gray-200 text-gray-600 px-4 py-2 rounded-lg font-bold text-sm transition flex items-center gap-2">
+                ⬅ Volver al Panel
+            </a>
+            <div>
+                <h1 class="text-xl font-extrabold text-slate-800 tracking-tight">DIRECTORIO DE USUARIOS</h1>
+                <p class="text-xs text-gray-400 font-medium">Gestión completa de la base de datos</p>
+            </div>
+        </div>
+        <div class="flex items-center gap-3">
+            <span class="bg-blue-50 text-blue-700 px-3 py-1 rounded-full text-xs font-bold border border-blue-100">
+                Total: <span id="totalCountHeader">0</span>
+            </span>
+        </div>
+    </nav>
+
+    <div class="flex-1 p-6 overflow-hidden flex flex-col max-w-[1600px] mx-auto w-full">
+        
+        <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-200 mb-6 flex-shrink-0">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-sm font-bold text-gray-500 uppercase tracking-wider flex items-center gap-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"></path></svg>
+                    Filtros de Búsqueda
+                </h2>
+                
+                <div class="flex gap-4">
+                    <button onclick="exportToExcel()" class="bg-green-100 hover:bg-green-200 text-green-800 px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-2 border border-green-200 shadow-sm">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                        Exportar Excel
+                    </button>
+
+                    <button onclick="clearFilters()" class="text-xs font-bold text-red-500 hover:text-red-700 hover:underline">
+                        Restablecer Filtros
+                    </button>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-4 items-end">
+                <div class="xl:col-span-1">
+                    <label class="block text-xs font-bold text-gray-700 mb-1">Método de Pago</label>
+                    <select id="filterPaymentMethod" onchange="applyUserFilter(true)" class="w-full border border-gray-300 rounded-xl p-2.5 text-sm bg-gray-50 focus:ring-2 focus:ring-blue-500 outline-none transition">
+                        <option value="all">Todos</option>
+                        <option value="Efectivo">💵 Efectivo</option>
+                        <option value="Transferencia Bancolombia">🏦 Bancolombia</option>
+                        <option value="Transferencia Nequi">📱 Nequi</option>
+                        <option value="Transferencia Daviplata">📱 Daviplata</option>
+                        <option value="Datafono">💳 Datáfono</option>
+                        <option value="Wompi">🌐 Wompi</option>
+                        <option value="Otro">Otro</option>
+                    </select>
+                </div>
+
+                <div class="xl:col-span-2 bg-blue-50 p-2 rounded-xl border border-blue-100">
+                    <label class="block text-[10px] font-black text-blue-600 uppercase mb-1 ml-1">F. Ingreso (Plan)</label>
+                    <div class="flex gap-2">
+                        <input type="date" id="filterIngresoStart" onchange="applyUserFilter(true)" class="w-1/2 border border-blue-200 rounded-lg p-2 text-xs">
+                        <span class="text-gray-400 self-center">-</span>
+                        <input type="date" id="filterIngresoEnd" onchange="applyUserFilter(true)" class="w-1/2 border border-blue-200 rounded-lg p-2 text-xs">
+                    </div>
+                </div>
+
+                <div class="xl:col-span-2 bg-green-50 p-2 rounded-xl border border-green-100">
+                    <label class="block text-[10px] font-black text-green-600 uppercase mb-1 ml-1">F. Pago</label>
+                    <div class="flex gap-2">
+                        <input type="date" id="filterPagoStart" onchange="applyUserFilter(true)" class="w-1/2 border border-green-200 rounded-lg p-2 text-xs">
+                        <span class="text-gray-400 self-center">-</span>
+                        <input type="date" id="filterPagoEnd" onchange="applyUserFilter(true)" class="w-1/2 border border-green-200 rounded-lg p-2 text-xs">
+                    </div>
+                </div>
+
+                <div class="xl:col-span-2 bg-indigo-50 p-2 rounded-xl border border-indigo-100">
+                    <label class="block text-[10px] font-black text-indigo-600 uppercase mb-1 ml-1">F. Registro Sistema</label>
+                    <div class="flex gap-2">
+                        <input type="date" id="filterRegistroStart" onchange="applyUserFilter(true)" class="w-1/2 border border-indigo-200 rounded-lg p-2 text-xs">
+                        <span class="text-gray-400 self-center">-</span>
+                        <input type="date" id="filterRegistroEnd" onchange="applyUserFilter(true)" class="w-1/2 border border-indigo-200 rounded-lg p-2 text-xs">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-2xl shadow-lg border border-gray-200 flex-1 overflow-hidden flex flex-col relative">
+            <div class="overflow-auto custom-scrollbar flex-1 pb-16">
+                <table class="w-full text-left border-collapse">
+                    <thead class="bg-gray-100 text-gray-600 uppercase font-bold text-xs sticky top-0 z-10 shadow-sm">
+                        <tr>
+                            <th class="p-4 border-b border-gray-200 w-16 text-center">ID</th>
+                            <th class="p-4 border-b border-gray-200">Usuario / Plan</th>
+                            <th class="p-4 border-b border-gray-200">Identificación</th>
+                            <th class="p-4 border-b border-gray-200 text-center">Estado</th>
+                            <th class="p-4 border-b border-gray-200">Detalles Pago</th>
+                            <th class="p-4 border-b border-gray-200">Fechas Clave</th>
+                            <th class="p-4 border-b border-gray-200 text-indigo-700">F. Registro</th>
+                            <th class="p-4 border-b border-gray-200 text-center">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="allUsersTableBody" class="divide-y divide-gray-100 bg-white"></tbody>
+                </table>
+            </div>
+
+            <div class="absolute bottom-0 left-0 w-full bg-white border-t border-gray-200 p-3 flex justify-between items-center z-20">
+                <div class="text-xs text-gray-500 font-bold hidden md:block">
+                    Mostrando <span id="showingCount" class="text-blue-600">0</span> usuarios
+                </div>
+                <div class="flex items-center gap-2 mx-auto md:mx-0">
+                    <button onclick="changePage(-1)" id="btnPrev" class="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-xs font-bold disabled:opacity-50 transition">⬅ Anterior</button>
+                    <span class="bg-blue-50 text-blue-800 px-3 py-2 rounded-lg text-xs font-bold border border-blue-100 min-w-[100px] text-center">
+                        Página <span id="currentPageDisplay">1</span> / <span id="totalPagesDisplay">1</span>
+                    </span>
+                    <button onclick="changePage(1)" id="btnNext" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold disabled:opacity-50 transition">Siguiente ➡</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="userModal" class="fixed inset-0 bg-black bg-opacity-60 hidden flex items-center justify-center z-50 backdrop-blur-sm overflow-y-auto py-10">
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-4xl relative my-auto m-4">
+            <div class="bg-slate-800 p-4 flex justify-between items-center text-white rounded-t-xl sticky top-0 z-10">
+                <h2 class="text-lg font-bold">Editar Ficha de Usuario</h2>
+                <button onclick="closeModal()" class="hover:bg-slate-600 p-1 rounded text-2xl leading-none">&times;</button>
+            </div>
+            <div class="p-6 max-h-[80vh] overflow-y-auto custom-scrollbar">
+                <input type="hidden" id="editUserId">
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
+                    <div><label class="label-form">Nombre</label><input type="text" id="editNombre" class="input-form"></div>
+                    <div><label class="label-form">Cédula</label><input type="text" id="editCedula" class="input-form"></div>
+                    <div><label class="label-form">Teléfono</label><input type="text" id="editTelefono" class="input-form"></div>
+                    <div><label class="label-form">Correo</label><input type="text" id="editCorreo" class="input-form"></div>
+                    <div class="md:col-span-2"><label class="label-form">Dirección</label><input type="text" id="editDireccion" class="input-form"></div>
+                    
+                    <div>
+                        <label class="label-form">Estado</label>
+                        <select id="editEstado" class="input-form bg-yellow-50 border-yellow-200 text-yellow-800 font-bold">
+                            <option value="ACTIVO">ACTIVO</option>
+                            <option value="INACTIVO">INACTIVO</option>
+                            <option value="CONGELADO">CONGELADO</option>
+                            <option value="VENCIDO">VENCIDO</option>
+                        </select>
+                    </div>
+                    
+                    <div class="md:col-span-2">
+                        <label class="label-form">Plan</label>
+                        <div class="flex gap-2">
+                            <select id="planSelect" class="input-form w-full">
+                                <option value="EXPERIENCIA FITNESS PLAN BÁSICO">PLAN BÁSICO</option>
+                                <option value="EXPERIENCIA FITNESS (ESTÁNDAR)">PLAN ESTÁNDAR</option>
+                                <option value="EXPERIENCIA FITNESS DE LUJO">PLAN DE LUJO</option>
+                                <option value="EXPERIENCIA BIKE FIT DE LUJO">PLAN BIKE FIT</option>
+                                <option value="Otro">Otro / Manual...</option>
+                            </select>
+                            <input type="text" id="planManualInput" class="input-form w-full hidden" placeholder="Nombre plan manual">
+                        </div>
+                    </div>
+
+                    <div><label class="label-form">F. Ingreso</label><input type="date" id="editFIngreso" class="input-form"></div>
+                    <div><label class="label-form text-red-500">F. Vencimiento</label><input type="date" id="editFVencimiento" class="input-form border-red-200 bg-red-50"></div>
+                    <div><label class="label-form text-indigo-600">F. Registro (Sistema)</label><input type="datetime-local" id="editFechaRegistro" class="input-form bg-indigo-50 border-indigo-200"></div>
+
+                    <div class="md:col-span-3 grid grid-cols-3 gap-4 bg-green-50 p-3 rounded-xl border border-green-200 mt-2">
+                        <div><label class="label-form text-green-700">F. Pago</label><input type="date" id="editFechaPago" class="input-form bg-white"></div>
+                        <div>
+                            <label class="label-form text-green-700">Método Pago</label>
+                            <select id="editMetodoPago" class="input-form bg-white">
+                                <option value="">--</option>
+                                <option value="Efectivo">Efectivo</option>
+                                <option value="Transferencia Bancolombia">Bancolombia</option>
+                                <option value="Transferencia Nequi">Nequi</option>
+                                <option value="Transferencia Daviplata">Daviplata</option>
+                                <option value="Datafono">Datáfono</option>
+                                <option value="Wompi">Wompi</option>
+                                <option value="Otro">Otro</option>
+                            </select>
+                        </div>
+                        <div><label class="label-form text-green-700">Monto</label><input type="number" id="editMontoPago" class="input-form bg-white" placeholder="0"></div>
+                    </div>
+                </div>
+
+                <div class="hidden">
+                    <input id="editNacimiento"><input id="editEdad"><input id="editSexo">
+                    <input id="editFExamen"><input id="editFNutricion"><textarea id="editFDeportiva"></textarea>
+                    <input id="editPlanInfo"><textarea id="editNotas"></textarea>
+                </div>
+
+                <div class="flex justify-end gap-3 mt-6 pt-4 border-t border-gray-100">
+                    <button onclick="closeModal()" class="px-5 py-2.5 text-gray-500 hover:bg-gray-100 rounded-lg font-bold transition">Cancelar</button>
+                    <button onclick="saveUserChanges()" class="px-6 py-2.5 bg-slate-800 text-white rounded-lg hover:bg-slate-900 shadow-lg font-bold transition transform active:scale-95">Guardar Cambios</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="users-list.js"></script>
+</body>
+</html>

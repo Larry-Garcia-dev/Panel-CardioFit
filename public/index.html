@@ -33,14 +33,25 @@
                 <h2 class="text-gray-500 text-sm font-bold uppercase tracking-wide">Gestión de Usuarios</h2>
 
                 <div class="flex gap-2">
-                    <button onclick="openReservationsModal()"
+                    <!-- <button onclick="openReservationsModal()"
                         class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-1 rounded text-sm font-bold shadow transition flex items-center gap-1">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                 d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                         </svg>
                         Reservas
-                    </button>
+                    </button> -->
+                    <a href="users-list.html"
+                        class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-1 rounded text-sm font-bold shadow transition flex items-center gap-1">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z">
+                            </path>
+                        </svg>
+                        Directorio
+                    </a>
+
+
 
                     <button onclick="document.getElementById('newUserModal').classList.remove('hidden')"
                         class="bg-green-600 hover:bg-green-700 text-white px-4 py-1 rounded text-sm font-bold shadow transition flex items-center gap-1">
@@ -161,6 +172,11 @@
                             <option value="F">Femenino</option>
                             <option value="Otro">Otro</option>
                         </select>
+                    </div>
+                    <div>
+                        <label class="label-form text-purple-600">Fecha Registro (Sistema)</label>
+                        <input type="datetime-local" id="editFechaRegistro"
+                            class="input-form border-purple-200 bg-purple-50">
                     </div>
 
 

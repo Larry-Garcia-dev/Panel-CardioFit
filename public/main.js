@@ -185,9 +185,8 @@ function openUserModal(id) {
             // --- NUEVO: Cargar datos de pago ---
             document.getElementById('editMetodoPago').value = user.METODO_PAGO || '';
             document.getElementById('editMontoPago').value = user.MONTO_PAGO || '';
+            document.getElementById('editFechaRegistro').value = formatDateTimeForInput(user.FECHA_REGISTRO);
             // -----------------------------------
-
-            // ... resto del código ...
             // Fechas
             const fVencimiento = formatDateForInput(user.F_VENCIMIENTO); // Guardamos esto en variable
             document.getElementById('editNacimiento').value = formatDateForInput(user.F_N);
@@ -278,6 +277,7 @@ function saveUserChanges() {
         // --- NUEVO: Enviar datos de pago ---
         metodo_pago: document.getElementById('editMetodoPago').value,
         monto_pago: document.getElementById('editMontoPago').value,
+        fecha_registro: document.getElementById('editFechaRegistro').value,
         // -----------------------------------
         cedula: document.getElementById('editCedula').value,
         telefono: document.getElementById('editTelefono').value,
@@ -739,4 +739,13 @@ if (textDeportiva && countDeportiva) {
             countDeportiva.classList.remove('text-red-600');
         }
     });
+}
+
+
+// Función para formatear fecha y hora para el input datetime-local
+function formatDateTimeForInput(dateString) {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    const pad = (n) => n < 10 ? '0' + n : n;
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }

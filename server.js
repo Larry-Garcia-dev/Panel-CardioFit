@@ -290,7 +290,7 @@ app.put('/api/Users/:id', (req, res) => {
         f_ingreso, f_vencimiento, estado, f_nacimiento,
         edad, sexo, f_examen, f_nutricion, f_deportiva, direccion,
         plan_info, fecha_pago, notas,
-        metodo_pago, monto_pago // <--- NUEVOS CAMPOS RECIBIDOS
+        metodo_pago, monto_pago,fecha_registro // <--- NUEVOS CAMPOS RECIBIDOS
     } = req.body;
 
     console.log(`📝 Actualizando ID ${id} con Pago: ${metodo_pago} - $${monto_pago}`);
@@ -303,7 +303,7 @@ app.put('/api/Users/:id', (req, res) => {
             EDAD = ?, SEXO = ?, F_EXAMEN_LABORATORIO = ?, 
             F_CITA_NUTRICION = ?, F_CITA_MED_DEPORTIVA = ?, DIRECCION_O_BARRIO = ?,
             PLAN_INFO = ?, FECHA_PAGO = ?, NOTAS = ?,
-            METODO_PAGO = ?, MONTO_PAGO = ?  -- <--- NUEVAS COLUMNAS SQL
+            METODO_PAGO = ?, MONTO_PAGO = ?, FECHA_REGISTRO = ?
         WHERE id = ?
     `;
 
@@ -316,6 +316,7 @@ app.put('/api/Users/:id', (req, res) => {
         notas,
         clean(metodo_pago), // <--- VALOR METODO
         clean(monto_pago),  // <--- VALOR MONTO
+        clean(fecha_registro), // <--- VALOR FECHA REGISTRO
         id
     ];
 
