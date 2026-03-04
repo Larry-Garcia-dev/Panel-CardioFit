@@ -15,7 +15,8 @@ const staffRoutes = require('./routes/staff');
 const schedulerRoutes = require('./routes/scheduler');
 const membershipRoutes = require('./routes/memberships');
 const n8nRoutes = require('./api/external-scheduler');
-const publicRoutes = require('./routes/public'); 
+const publicRoutes = require('./routes/public');
+const birthdayRoutes = require('./routes/birthdays');
 const app = express();
 
 // ==========================================
@@ -89,6 +90,7 @@ app.use('/api/staff-management', staffRoutes);
 app.use('/api/memberships', membershipRoutes);
 app.use('/api/scheduler', schedulerRoutes);
 app.use('/api/n8n', n8nRoutes);
+app.use('/api/birthdays', birthdayRoutes);
 
 
 // --- RUTAS DE API (BACKEND) ---
