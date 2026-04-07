@@ -4,6 +4,7 @@ const session = require('express-session');
 const path = require('path');
 const cron = require('node-cron');
 const axios = require('axios');
+const cors = require('cors');
 
 // IMPORTAR CONEXIÓN COMPARTIDA (POOL)
 // Esta línea carga la configuración de config/db.js
@@ -18,6 +19,20 @@ const n8nRoutes = require('./api/external-scheduler');
 const publicRoutes = require('./routes/public');
 const birthdayRoutes = require('./routes/birthdays');
 const app = express();
+const dominiosPermitidos = ['https://admin-cardiofit.online'];
+
+app.use(cors({
+    origin: function (origin, callback) {
+        // Permitir peticiones sin origen (ej. n8n, Postman) temporalmente o bloquearlas 
+        // Si quieres bloquear todo lo que no sea tu dominio, quita "!origin ||"
+        if (!origin || dominiosPermitidos.includes(origin)) {
+            callback(null, true);
+        } else {
+            callback(new Error('Bloqueado por CORS: Dominio no autorizado'));
+        }
+    },
+    credentials: true // Importante para que funcionen las cookies de sesión
+}));
 
 // ==========================================
 // 1. MIDDLEWARE
@@ -57,7 +72,7 @@ app.get('/:phone', (req, res, next) => {
 });
 
 // ==========================================
-// 2. MIDDLEWARE DE SEGURIDAD
+// 2. MIDDLEWARE DE SEGURIDAD Y BLINDAJE
 // ==========================================
 app.use((req, res, next) => {
     const rutasPublicas = [
@@ -69,15 +84,49 @@ app.use((req, res, next) => {
         '/api/check-session',
         '/api/appointments/kiosk-day',
         '/api/scheduler/book',
-        '/api/n8n/agendar'
+        '/api/n8n/agendar' // N8N necesita acceso público
     ];
 
+    // 1. Permitir archivos estáticos
     if (req.path.includes('.') && !req.path.endsWith('.html')) return next();
+    
+    // 2. Permitir rutas públicas definidas
     if (rutasPublicas.includes(req.path)) return next();
-    if (req.session.loggedin) return next();
 
+    // 3. CAPA EXTRA DE BLINDAJE (Opcional pero recomendada)
+    // Evita que otros sistemas ataquen tus APIs directamente si no son n8n
+    const origin = req.get('origin');
+    const referer = req.get('referer');
+    const esDominioPermitido = 
+        (origin && origin.includes('admin-cardiofit.online')) || 
+        (referer && referer.includes('admin-cardiofit.online'));
+
+    // Si es una petición a la API, no es pública, y no viene de tu dominio -> Bloquear
+    if (req.path.startsWith('/api/') && !esDominioPermitido && req.path !== '/api/n8n/agendar') {
+        return res.status(403).json({ success: false, message: 'Acceso denegado: Origen no válido' });
+    }
+
+    // 4. VERIFICACIÓN DE SESIÓN ESTRICTA
+    if (req.session.loggedin) {
+        // Validar que SOLO los ADMIN puedan modificar datos de usuarios/pagos
+        // Protege los métodos POST, PUT, DELETE en rutas sensibles
+        const rutasSensibles = ['/api/Users', '/api/staff-management'];
+        const isRutaSensible = rutasSensibles.some(ruta => req.path.startsWith(ruta));
+        const isModificacion = ['POST', 'PUT', 'DELETE'].includes(req.method);
+
+        if (isRutaSensible && isModificacion && req.session.role !== 'admin') {
+            return res.status(403).json({ 
+                success: false, 
+                message: 'Bloqueo de seguridad: Solo un Administrador puede realizar esta acción.' 
+            });
+        }
+        
+        return next();
+    }
+
+    // Si no está logueado, redirigir o devolver error 401
     if (req.path === '/' || req.path.endsWith('.html')) return res.redirect('/login.html');
-    if (req.path.startsWith('/api/')) return res.status(401).json({ success: false, message: 'No autorizado' });
+    if (req.path.startsWith('/api/')) return res.status(401).json({ success: false, message: 'No autorizado, inicie sesión' });
 
     next();
 });
