@@ -92,7 +92,7 @@ function renderGrid() {
                 headerText = "FULL";
                 headerClass = "text-red-600 font-bold";
             } else {
-                headerText = "CardioFit";
+                headerText = `| ${count} |`;
 
                 // btnAdd = `
                 //     <button onclick="openBookingModal(${staff.id}, '${staff.name}', '${time}', ${count})" 
