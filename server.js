@@ -109,9 +109,11 @@ app.use((req, res, next) => {
     // 4. VERIFICACIÓN DE SESIÓN ESTRICTA
     if (req.session.loggedin) {
         // Validar que SOLO los ADMIN puedan modificar datos de usuarios/pagos
-        // Protege los métodos POST, PUT, DELETE en rutas sensibles
-        const rutasSensibles = ['/api/Users', '/api/staff-management'];
-        const isRutaSensible = rutasSensibles.some(ruta => req.path.startsWith(ruta));
+        const rutasSensibles = ['/api/users', '/api/staff-management'];
+        
+        // PASAMOS TODO A MINÚSCULAS PARA EVITAR EL TRUCO DEL ATACANTE
+        const pathMinuscula = req.path.toLowerCase();
+        const isRutaSensible = rutasSensibles.some(ruta => pathMinuscula.startsWith(ruta.toLowerCase()));
         const isModificacion = ['POST', 'PUT', 'DELETE'].includes(req.method);
 
         if (isRutaSensible && isModificacion && req.session.role !== 'admin') {
