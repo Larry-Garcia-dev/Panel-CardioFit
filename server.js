@@ -83,7 +83,7 @@ app.use((req, res, next) => {
         '/api/register',
         '/api/check-session',
         '/api/appointments/kiosk-day',
-        '/api/scheduler/book',
+        // '/api/scheduler/book',
         '/api/n8n/agendar' // N8N necesita acceso público
     ];
 
