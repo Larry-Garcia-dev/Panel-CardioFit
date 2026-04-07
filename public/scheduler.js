@@ -68,19 +68,19 @@ function renderGrid() {
 
         HOURS.forEach(time => {
             const appts = currentAppointments.filter(a => a.staff_id === staff.id && a.start_time === time);
-            
+
             // Detección de bloqueo robusta (1 o true)
             const lockerAppt = appts.find(a => a.is_locking == 1 || a.is_locking === true);
             const isLocked = !!lockerAppt;
             const count = appts.length;
-            
+
             let bgColor = 'bg-white';
             if (count > 0) bgColor = 'bg-green-50';
             if (count >= 5) bgColor = 'bg-red-50';
-            if (isLocked) bgColor = 'bg-red-200'; 
+            if (isLocked) bgColor = 'bg-red-200';
 
             html += `<td class="p-2 border-r border-gray-200 align-top ${bgColor} relative grid-cell">`;
-            
+
             let headerText = `${count}/5`;
             let headerClass = "text-green-600";
             let btnAdd = '';
@@ -92,22 +92,23 @@ function renderGrid() {
                 headerText = "FULL";
                 headerClass = "text-red-600 font-bold";
             } else {
-                 
-                btnAdd = `
-                    <button onclick="openBookingModal(${staff.id}, '${staff.name}', '${time}', ${count})" 
-                            class="bg-blue-600 text-white rounded w-6 h-6 flex items-center justify-center font-bold text-lg hover:bg-blue-700 transition shadow hover:scale-110" 
-                            title="Agendar">
-                        +
-                    </button>
-                `;
-                 btnAdd += `
-                    <button onclick="massLockSlot(${staff.id}, '${time}')" 
-                            class="ml-1 bg-orange-500 text-white rounded w-6 h-6 flex items-center justify-center font-bold text-xs hover:bg-orange-600 transition shadow hover:scale-110" 
-                            title="Bloquear Hora Completa">
-                        🔒
-                    </button>
-                `;
-              
+                headerText = "CardioFit";
+
+                // btnAdd = `
+                //     <button onclick="openBookingModal(${staff.id}, '${staff.name}', '${time}', ${count})" 
+                //             class="bg-blue-600 text-white rounded w-6 h-6 flex items-center justify-center font-bold text-lg hover:bg-blue-700 transition shadow hover:scale-110" 
+                //             title="Agendar">
+                //         +
+                //     </button>
+                // `;
+                //  btnAdd += `
+                //     <button onclick="massLockSlot(${staff.id}, '${time}')" 
+                //             class="ml-1 bg-orange-500 text-white rounded w-6 h-6 flex items-center justify-center font-bold text-xs hover:bg-orange-600 transition shadow hover:scale-110" 
+                //             title="Bloquear Hora Completa">
+                //         🔒
+                //     </button>
+                // `;
+
             }
 
             html += `
@@ -121,7 +122,7 @@ function renderGrid() {
             appts.forEach(appt => {
                 const isTheLocker = (appt.is_locking == 1 || appt.is_locking === true);
                 const borderClass = isTheLocker ? 'border-red-500 bg-red-100 ring-1 ring-red-300' : 'border-gray-300 bg-white';
-                
+
                 // --- CAMBIO: INFORMACIÓN DE SERVICIO EN TOOLTIP ---
                 // Se prioriza: 1. Service Name guardado, 2. Plan del usuario, 3. 'General'
                 const serviceInfo = appt.service_name || appt.PLAN || 'General';
@@ -222,7 +223,7 @@ function confirmBooking(isLocking) {
 
     fetch('/api/scheduler/book', {
         method: 'POST',
-        headers: {'Content-Type': 'application/json'},
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
             userId: userId, staffId: selectedStaffId, date: date, time: selectedTime, lock: lockValue
         })
@@ -264,8 +265,8 @@ function cancelAppointment(id) {
 
 function sendWhatsapp(nombre, telefono, hora) {
     if (!telefono) return Swal.fire('Info', 'Sin teléfono.', 'info');
-    let tel = telefono.replace(/\D/g, ''); 
-    if (!tel.startsWith('57') && tel.length === 10) tel = '57' + tel; 
+    let tel = telefono.replace(/\D/g, '');
+    if (!tel.startsWith('57') && tel.length === 10) tel = '57' + tel;
     const msg = `Hola ${nombre}, CardioFit confirma tu cita para las ${formatTime(hora)}. ¡Te esperamos!`;
     window.open(`https://wa.me/${tel}?text=${encodeURIComponent(msg)}`, '_blank');
 }
@@ -297,19 +298,19 @@ function massLockSlot(staffId, time) {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ staffId, date, time })
             })
-            .then(res => res.json())
-            .then(data => {
-                if (data.success) {
-                    const msg = data.updated > 0 
-                        ? `Se bloquearon ${data.updated} usuarios existentes.` 
-                        : 'Se creó un bloqueo en el horario vacío.';
-                    
-                    Swal.fire('Bloqueado', msg, 'success');
-                    loadScheduler(); // Recargar la grilla
-                } else {
-                    Swal.fire('Error', data.message, 'error');
-                }
-            });
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        const msg = data.updated > 0
+                            ? `Se bloquearon ${data.updated} usuarios existentes.`
+                            : 'Se creó un bloqueo en el horario vacío.';
+
+                        Swal.fire('Bloqueado', msg, 'success');
+                        loadScheduler(); // Recargar la grilla
+                    } else {
+                        Swal.fire('Error', data.message, 'error');
+                    }
+                });
         }
     });
 }
