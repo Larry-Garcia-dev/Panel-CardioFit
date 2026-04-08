@@ -19,19 +19,22 @@ const n8nRoutes = require('./api/external-scheduler');
 const publicRoutes = require('./routes/public');
 const birthdayRoutes = require('./routes/birthdays');
 const app = express();
-const dominiosPermitidos = ['https://admin-cardiofit.online'];
+const dominiosPermitidos = [
+    'https://admin-cardiofit.online', 
+    'https://www.admin-cardiofit.online'
+];
 
 app.use(cors({
     origin: function (origin, callback) {
-        // Permitir peticiones sin origen (ej. n8n, Postman) temporalmente o bloquearlas 
-        // Si quieres bloquear todo lo que no sea tu dominio, quita "!origin ||"
-        if (!origin || dominiosPermitidos.includes(origin)) {
+        // Permitir si no hay origen (como apps móviles o N8N) o si está en la lista
+        if (!origin || dominiosPermitidos.indexOf(origin) !== -1) {
             callback(null, true);
         } else {
+            console.log("🚫 Origen bloqueado por CORS:", origin);
             callback(new Error('Bloqueado por CORS: Dominio no autorizado'));
         }
     },
-    credentials: true // Importante para que funcionen las cookies de sesión
+    credentials: true
 }));
 
 // ==========================================
