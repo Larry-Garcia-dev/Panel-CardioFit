@@ -92,22 +92,22 @@ function renderGrid() {
                 headerText = "FULL";
                 headerClass = "text-red-600 font-bold";
             } else {
-                headerText = `| ${count} |`;
+                // headerText = `| ${count} |`;
 
-                // btnAdd = `
-                //     <button onclick="openBookingModal(${staff.id}, '${staff.name}', '${time}', ${count})" 
-                //             class="bg-blue-600 text-white rounded w-6 h-6 flex items-center justify-center font-bold text-lg hover:bg-blue-700 transition shadow hover:scale-110" 
-                //             title="Agendar">
-                //         +
-                //     </button>
-                // `;
-                //  btnAdd += `
-                //     <button onclick="massLockSlot(${staff.id}, '${time}')" 
-                //             class="ml-1 bg-orange-500 text-white rounded w-6 h-6 flex items-center justify-center font-bold text-xs hover:bg-orange-600 transition shadow hover:scale-110" 
-                //             title="Bloquear Hora Completa">
-                //         🔒
-                //     </button>
-                // `;
+                btnAdd = `
+                     <button onclick="openBookingModal(${staff.id}, '${staff.name}', '${time}', ${count})" 
+                            class="bg-blue-600 text-white rounded w-6 h-6 flex items-center justify-center font-bold text-lg hover:bg-blue-700 transition shadow hover:scale-110" 
+                            title="Agendar">
+                        +
+                     </button>
+                 `;
+                btnAdd += `
+                     <button onclick="massLockSlot(${staff.id}, '${time}')" 
+                             class="ml-1 bg-orange-500 text-white rounded w-6 h-6 flex items-center justify-center font-bold text-xs hover:bg-orange-600 transition shadow hover:scale-110" 
+                             title="Bloquear Hora Completa">
+                       🔒
+                    </button>
+                `;
 
             }
 
