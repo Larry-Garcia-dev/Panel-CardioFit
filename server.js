@@ -6,9 +6,6 @@ const cron = require('node-cron');
 const axios = require('axios');
 const cors = require('cors');
 
-// IMPORTAR CONEXIÓN COMPARTIDA (POOL)
-// Esta línea carga la configuración de config/db.js
-// Ya no necesitamos 'mysql2' ni crear conexiones aquí.
 const db = require('./config/db');
 
 // IMPORTAR RUTAS
@@ -18,27 +15,36 @@ const membershipRoutes = require('./routes/memberships');
 const n8nRoutes = require('./api/external-scheduler');
 const publicRoutes = require('./routes/public');
 const birthdayRoutes = require('./routes/birthdays');
+
 const app = express();
+
+// ==========================================
+// 1. CONFIGURACIÓN DE SEGURIDAD (CORS)
+// ==========================================
 const dominiosPermitidos = [
     'https://admin-cardiofit.online', 
     'https://www.admin-cardiofit.online'
 ];
 
-app.use(cors({
+const corsOptions = {
     origin: function (origin, callback) {
-        // Permitir si no hay origen (como apps móviles o N8N) o si está en la lista
         if (!origin || dominiosPermitidos.indexOf(origin) !== -1) {
             callback(null, true);
         } else {
-            console.log("🚫 Origen bloqueado por CORS:", origin);
-            callback(new Error('Bloqueado por CORS: Dominio no autorizado'));
+            console.log("🚫 Bloqueado por CORS:", origin);
+            callback(new Error('No permitido por CORS'));
         }
     },
-    credentials: true
-}));
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization']
+};
+
+// ¡ESTA LÍNEA ES LA QUE TE FALTABA ACTIVAR!
+app.use(cors(corsOptions));
 
 // ==========================================
-// 1. MIDDLEWARE
+// 2. MIDDLEWARES BÁSICOS
 // ==========================================
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -49,96 +55,56 @@ app.use(session({
     saveUninitialized: true
 }));
 
-
-app.use('/api/public', publicRoutes);
-
-// app.get('/:phone', (req, res, next) => {
-//     const phone = req.params.phone;
-    
-//     // Si parece un archivo (tiene punto) o es una ruta de sistema, saltar
-//     if (phone.includes('.') || phone.startsWith('api') || phone === 'favicon.ico') return next();
-
-//     // Servir la nueva vista móvil
-//     res.sendFile(path.join(__dirname, 'public', 'booking.html'));
-// });
-
-app.get('/:phone', (req, res, next) => {
-    const phone = req.params.phone;
-    
-    // CORRECCIÓN: Agregamos "logout" y "admin" a las excepciones
-    if (phone === 'logout' || phone === 'admin' || phone.includes('.') || phone.startsWith('api') || phone === 'favicon.ico') {
-        return next();
-    }
-
-    // Servir la nueva vista móvil
-    res.sendFile(path.join(__dirname, 'public', 'booking.html'));
-});
-
 // ==========================================
-// 2. MIDDLEWARE DE SEGURIDAD Y BLINDAJE
+// 3. FILTRO ANTI-BOTS (EL BÚNKER)
 // ==========================================
 app.use((req, res, next) => {
-    const rutasPublicas = [
-        '/login.html',
-        '/register.html',
-        '/kiosk.html',
-        '/api/login',
-        '/api/register',
-        '/api/check-session',
-        '/api/appointments/kiosk-day',
-        // '/api/scheduler/book',
-        '/api/n8n/agendar' // N8N necesita acceso público
-    ];
-
-    // 1. Permitir archivos estáticos
-    if (req.path.includes('.') && !req.path.endsWith('.html')) return next();
+    const ua = req.headers['user-agent'] || '';
+    const origin = req.headers['origin'] || '';
+    const referer = req.headers['referer'] || '';
     
-    // 2. Permitir rutas públicas definidas
-    if (rutasPublicas.includes(req.path)) return next();
+    // 1. MATAR SCRIPTS
+    const esBot = /python|go-http-client|axios|curl|postman|insomnia/i.test(ua);
+    
+    // 2. VALIDAR NAVEGADOR (Permitimos también WhatsApp porque tus clientes vienen de ahí)
+    const esNavegadorReal = /mozilla|chrome|safari|firefox|edge|whatsapp/i.test(ua);
 
-    // 3. CAPA EXTRA DE BLINDAJE (Opcional pero recomendada)
-    // Evita que otros sistemas ataquen tus APIs directamente si no son n8n
-    const origin = req.get('origin');
-    const referer = req.get('referer');
-    const esDominioPermitido = 
-        (origin && origin.includes('admin-cardiofit.online')) || 
-        (referer && referer.includes('admin-cardiofit.online'));
-
-    // Si es una petición a la API, no es pública, y no viene de tu dominio -> Bloquear
-    if (req.path.startsWith('/api/') && !esDominioPermitido && req.path !== '/api/n8n/agendar') {
-        return res.status(403).json({ success: false, message: 'Acceso denegado: Origen no válido' });
+    if (esBot || !esNavegadorReal) {
+        console.log(`❌ ATAQUE BLOQUEADO: Script detectado (${ua}) desde IP: ${req.ip}`);
+        return res.status(403).json({ success: false, message: "Acceso denegado." });
     }
 
-    // 4. VERIFICACIÓN DE SESIÓN ESTRICTA
-    if (req.session.loggedin) {
-        // Validar que SOLO los ADMIN puedan modificar datos de usuarios/pagos
-        const rutasSensibles = ['/api/users', '/api/staff-management'];
-        
-        // PASAMOS TODO A MINÚSCULAS PARA EVITAR EL TRUCO DEL ATACANTE
-        const pathMinuscula = req.path.toLowerCase();
-        const isRutaSensible = rutasSensibles.some(ruta => pathMinuscula.startsWith(ruta.toLowerCase()));
-        const isModificacion = ['POST', 'PUT', 'DELETE'].includes(req.method);
+    // 3. VALIDAR DOMINIO (Solo para rutas /api/ que no sean las públicas de clientes)
+    const esRutaPublicaCliente = req.path.startsWith('/api/public');
+    const esRutaN8N = req.path.startsWith('/api/n8n');
+    const esLogin = req.path === '/api/login';
 
-        if (isRutaSensible && isModificacion && req.session.role !== 'admin') {
-            return res.status(403).json({ 
-                success: false, 
-                message: 'Bloqueo de seguridad: Solo un Administrador puede realizar esta acción.' 
-            });
+    if (!esRutaPublicaCliente && !esRutaN8N && !esLogin && req.path.startsWith('/api/')) {
+        const vieneDeDominioOK = dominiosPermitidos.some(d => referer.startsWith(d) || origin.startsWith(d));
+        if (!vieneDeDominioOK) {
+            console.log(`❌ ORIGEN NO AUTORIZADO: ${referer || 'Sin Referer'} - Ruta: ${req.path}`);
+            return res.status(403).json({ success: false, message: "No autorizado." });
         }
-        
-        return next();
     }
-
-    // Si no está logueado, redirigir o devolver error 401
-    if (req.path === '/' || req.path.endsWith('.html')) return res.redirect('/login.html');
-    if (req.path.startsWith('/api/')) return res.status(401).json({ success: false, message: 'No autorizado, inicie sesión' });
 
     next();
 });
 
 // ==========================================
-// 3. RUTAS
+// 4. RUTAS
 // ==========================================
+
+// IMPORTANTE: publicRoutes primero para que los clientes entren sin trabas
+app.use('/api/public', publicRoutes);
+
+app.get('/:phone', (req, res, next) => {
+    const phone = req.params.phone;
+    if (phone === 'logout' || phone === 'admin' || phone.includes('.') || phone.startsWith('api') || phone === 'favicon.ico') {
+        return next();
+    }
+    res.sendFile(path.join(__dirname, 'public', 'booking.html'));
+});
+
 app.use(express.static('public'));
 app.use('/api/staff-management', staffRoutes);
 app.use('/api/memberships', membershipRoutes);
