@@ -23,7 +23,16 @@ const app = express();
 // ==========================================
 const dominiosPermitidos = [
     'https://admin-cardiofit.online', 
-    'https://www.admin-cardiofit.online'
+    'https://www.admin-cardiofit.online',
+    'https://cardiofitlab.com',
+    'https://www.cardiofitlab.com',
+    'https://wildcard.cardiofit.com',
+    'https://www.wildcard.cardiofit.com',
+    'https://www.svc.cardiofitlab.com  ',
+    'https://svc.cardiofitlab.com',
+    'https://api.cardiofitlab.com',
+    'https://*.svc.cardiofitlab.com',
+    'https://*.cardiofitlab.com'
 ];
 
 const corsOptions = {
