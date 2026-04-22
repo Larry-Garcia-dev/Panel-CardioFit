@@ -33,7 +33,8 @@ const dominiosPermitidos = [
     'https://svc.cardiofitlab.com',
     'https://api.cardiofitlab.com',
     'https://*.svc.cardiofitlab.com',
-    'https://*.cardiofitlab.com'
+    'https://*.cardiofitlab.com',
+    'http://localhost:3000'
 ];
 
 const corsOptions = {
@@ -109,10 +110,22 @@ app.use('/api/public', publicRoutes);
 
 app.get('/:phone', (req, res, next) => {
     const phone = req.params.phone;
+    
+    // Rutas protegidas o del sistema que NO deben ser redireccionadas
     if (phone === 'logout' || phone === 'admin' || phone.includes('.') || phone.startsWith('api') || phone === 'favicon.ico') {
         return next();
     }
-    res.sendFile(path.join(__dirname, 'public', 'booking.html'));
+
+    // 1. Limpiamos el texto para dejar solo números
+    let phoneClean = phone.replace(/\D/g, '');
+    
+    // 2. Si el número no empieza con 57, se lo agregamos (como en tu ejemplo)
+    if (phoneClean && !phoneClean.startsWith('57')) {
+        phoneClean = '57' + phoneClean;
+    }
+
+    // 3. Redirigimos a la nueva plataforma como un "puente"
+    res.redirect(`https://app.cardiofitlab.com/appointments/${phoneClean}`);
 });
 
 app.use(express.static('public'));
@@ -692,15 +705,22 @@ app.get('/api/appointments/staff-range', (req, res) => {
     });
 });
 
-// ========================================== Sauna gratis===========================================
+// ========================================== Sauna gratis ===========================================
 app.get(['/:phone', '/:phone/saunagratis'], (req, res, next) => {
     const phone = req.params.phone;
     
-    // Validaciones de seguridad existentes
-    if (phone.includes('.') || phone.startsWith('api') || phone === 'favicon.ico') return next();
+    if (phone === 'logout' || phone === 'admin' || phone.includes('.') || phone.startsWith('api') || phone === 'favicon.ico') {
+        return next();
+    }
 
-    // Servir el mismo archivo HTML, el frontend leerá la URL para saber si activa la promo
-    res.sendFile(path.join(__dirname, 'public', 'booking.html'));
+    let phoneClean = phone.replace(/\D/g, '');
+    if (phoneClean && !phoneClean.startsWith('57')) {
+        phoneClean = '57' + phoneClean;
+    }
+
+    // Opcional: si quieres conservar el parámetro de saunagratis en la nueva app, puedes pasarlo en la URL. 
+    // Por ahora redireccionaremos de la misma forma al flujo de agendamiento.
+    res.redirect(`https://app.cardiofitlab.com/appointments/${phoneClean}`);
 });
 
 
